@@ -1,0 +1,27 @@
+# Copyright (c) 2023 Trackunit Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig MODEM_MODULES
+	bool "Modem modules"
+
+if MODEM_MODULES
+
+config MODEM_CHAT
+	bool "Modem chat module"
+	select RING_BUFFER
+
+config MODEM_CMUX
+	bool "Modem CMUX module"
+	select RING_BUFFER
+	select EVENTS
+
+config MODEM_PPP
+	bool "Modem PPP module"
+	depends on NET_L2_PPP
+	select RING_BUFFER
+
+config MODEM_PIPE_UART
+	bool "Modem pipe to UART module"
+	depends on UART_INTERRUPT_DRIVEN
+
+endif
