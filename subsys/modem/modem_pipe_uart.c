@@ -8,10 +8,8 @@
 LOG_MODULE_REGISTER(modem_pipe_uart);
 
 #include <string.h>
-#include <zephyr/kernel.h>
-#include <zephyr/drivers/uart.h>
 
-#include "modem_pipe_uart.h"
+#include <zephyr/modem/modem_pipe_uart.h>
 
 #define MODEM_UART_EVENTS_RX_READY (BIT(0))
 #define MODEM_UART_EVENTS_TX_IDLE  (BIT(1))

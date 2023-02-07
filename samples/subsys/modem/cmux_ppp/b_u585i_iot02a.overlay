@@ -1,6 +1,6 @@
 / {
     aliases {
-        modem-uart = &cellular;
+        cellular-modem = &usart2;
     };
 
     zephyr,user {
@@ -20,7 +20,7 @@
 
 	cellular: cellular {
 		compatible = "quectel,bgxx";
-		status = "okay";
+		status = "disabled";
 
         /* doam */
 		mdm-status-gpios = <&gpioe 0 GPIO_ACTIVE_HIGH>;
@@ -35,5 +35,5 @@
 		mdm-sw-v1-gpios = <&gpioh 14 GPIO_ACTIVE_HIGH>;
 		mdm-sw-v2-gpios = <&gpioh 15 GPIO_ACTIVE_HIGH>;
         */
-    };    
+    };
 };

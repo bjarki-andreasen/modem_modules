@@ -7,6 +7,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/types.h>
 #include <zephyr/device.h>
+#include <zephyr/drivers/uart.h>
 #include <zephyr/sys/ring_buffer.h>
 
 #include <zephyr/modem/modem_pipe.h>
@@ -33,9 +34,6 @@ struct modem_pipe_uart_config {
 	uint32_t tx_buf_size;
 };
 
-/**
- * @brief Initialize modem UART pipe
- */
 int modem_pipe_uart_init(struct modem_pipe_uart *context,
 			 const struct modem_pipe_uart_config *config);
 

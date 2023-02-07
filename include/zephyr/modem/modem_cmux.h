@@ -43,8 +43,8 @@ struct modem_cmux_event {
 	enum modem_cmux_event_type type;
 };
 
-typedef void (*modem_cmux_event_handler_t)(struct modem_cmux *cmux, struct modem_cmux_event event,
-					   void *user_data);
+typedef void (*modem_cmux_callback)(struct modem_cmux *cmux, struct modem_cmux_event event,
+				    void *user_data);
 
 enum modem_cmux_dlci_state {
 	MODEM_CMUX_DLCI_STATE_CLOSED = 0,
@@ -112,15 +112,15 @@ struct modem_cmux {
 	struct modem_pipe *pipe;
 
 	/* Event handler */
-	modem_cmux_event_handler_t event_handler;
-	void *event_handler_user_data;
+	modem_cmux_callback callback;
+	void *user_data;
 
 	/* Synchronization */
 	struct k_mutex lock;
 
 	/* DLCI channel contexts */
 	struct modem_cmux_dlci *dlcis;
-	uint16_t dlcis_cnt;
+	uint16_t dlcis_size;
 
 	/* Status */
 	enum modem_cmux_state state;
@@ -149,19 +149,19 @@ struct modem_cmux {
 
 /**
  * @brief Contains CMUX instance confuguration data
- * @param event_handler Invoked when event occurs
- * @param event_handler_user_data Free to use pointer passed to event handler when invoked
+ * @param callback Invoked when event occurs
+ * @param user_data Free to use pointer passed to event handler when invoked
  * @param dlcis Array of DLCI channel contexts used internally
- * @param dlcis_cnt Length of array of DLCI channel contexts
+ * @param dlcis_size Length of array of DLCI channel contexts
  * @param receive_buf Receive buffer
  * @param receive_buf_size Sice of receive buffer in bytes
  * @param receive_timeout Timeout from data is received until data is read
  */
 struct modem_cmux_config {
-	modem_cmux_event_handler_t event_handler;
-	void *event_handler_user_data;
+	modem_cmux_callback callback;
+	void *user_data;
 	struct modem_cmux_dlci *dlcis;
-	uint16_t dlcis_cnt;
+	uint16_t dlcis_size;
 	uint8_t *receive_buf;
 	uint16_t receive_buf_size;
 	k_timeout_t receive_timeout;
@@ -200,7 +200,7 @@ struct modem_cmux_dlci_config {
  * @param config CMUX DLCI channel configuration
  * @param pipe Pipe context
  */
-int modem_cmux_dlci_open(struct modem_cmux *cmux, struct modem_cmux_dlci_config *config,
+int modem_cmux_dlci_open(struct modem_cmux *cmux, const struct modem_cmux_dlci_config *config,
 			 struct modem_pipe *pipe);
 
 /**

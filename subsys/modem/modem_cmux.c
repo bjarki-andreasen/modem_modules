@@ -110,7 +110,7 @@ static void modem_cmux_dlci_pipe_raise_event(struct modem_cmux_dlci *dlci,
 
 static struct modem_cmux_dlci *modem_cmux_dlci_alloc(struct modem_cmux *cmux)
 {
-	for (uint16_t i = 0; i < cmux->dlcis_cnt; i++) {
+	for (uint16_t i = 0; i < cmux->dlcis_size; i++) {
 		if (cmux->dlcis[i].allocated == true) {
 			continue;
 		}
@@ -131,7 +131,7 @@ static void modem_cmux_dlci_free(struct modem_cmux *cmux, struct modem_cmux_dlci
 /* Find allocated DLCI channel context with matcing DLCI channel address */
 static struct modem_cmux_dlci *modem_cmux_dlci_find(struct modem_cmux *cmux, uint16_t dlci_address)
 {
-	for (uint16_t i = 0; i < cmux->dlcis_cnt; i++) {
+	for (uint16_t i = 0; i < cmux->dlcis_size; i++) {
 		if (cmux->dlcis[i].allocated == false) {
 			continue;
 		}
@@ -167,7 +167,7 @@ static void modem_cmux_dlci_close_all(struct modem_cmux *cmux)
 {
 	struct modem_cmux_dlci *dlci;
 
-	for (uint16_t i = 0; i < cmux->dlcis_cnt; i++) {
+	for (uint16_t i = 0; i < cmux->dlcis_size; i++) {
 		/* Ease readability */
 		dlci = &cmux->dlcis[i];
 
@@ -192,12 +192,12 @@ static void modem_cmux_dlci_close_all(struct modem_cmux *cmux)
 static void modem_cmux_raise_event(struct modem_cmux *cmux, struct modem_cmux_event event)
 {
 	/* Validate event handler set */
-	if (cmux->event_handler == NULL) {
+	if (cmux->callback == NULL) {
 		return;
 	}
 
 	/* Invoke event handler */
-	cmux->event_handler(cmux, event, cmux->event_handler_user_data);
+	cmux->callback(cmux, event, cmux->user_data);
 }
 
 static void modem_cmux_bus_event_handler(struct modem_pipe *pipe, enum modem_pipe_event event,
@@ -807,8 +807,8 @@ int modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *con
 	}
 
 	/* Validate config */
-	if ((config->event_handler == NULL) || (config->dlcis == NULL) ||
-	    (config->dlcis_cnt == 0) || (config->receive_buf == NULL) ||
+	if ((config->callback == NULL) || (config->dlcis == NULL) ||
+	    (config->dlcis_size == 0) || (config->receive_buf == NULL) ||
 	    (config->receive_buf_size == 0)) {
 		return -EINVAL;
 	}
@@ -817,15 +817,15 @@ int modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *con
 	memset(cmux, 0x00, sizeof(*cmux));
 
 	/* Clear DLCI channel contexts */
-	for (uint16_t i = 0; i < config->dlcis_cnt; i++) {
+	for (uint16_t i = 0; i < config->dlcis_size; i++) {
 		memset(&config->dlcis[i], 0x00, sizeof(config->dlcis[0]));
 	}
 
 	/* Copy configuration to context */
-	cmux->event_handler = config->event_handler;
-	cmux->event_handler_user_data = config->event_handler_user_data;
+	cmux->callback = config->callback;
+	cmux->user_data = config->user_data;
 	cmux->dlcis = config->dlcis;
-	cmux->dlcis_cnt = config->dlcis_cnt;
+	cmux->dlcis_size = config->dlcis_size;
 	cmux->receive_buf = config->receive_buf;
 	cmux->receive_buf_size = config->receive_buf_size;
 	cmux->receive_timeout = config->receive_timeout;
@@ -880,7 +880,7 @@ int modem_cmux_connect(struct modem_cmux *cmux, struct modem_pipe *pipe)
 	return 0;
 }
 
-int modem_cmux_dlci_open(struct modem_cmux *cmux, struct modem_cmux_dlci_config *config,
+int modem_cmux_dlci_open(struct modem_cmux *cmux, const struct modem_cmux_dlci_config *config,
 			 struct modem_pipe *pipe)
 {
 	int ret;

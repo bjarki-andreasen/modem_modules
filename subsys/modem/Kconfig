@@ -22,6 +22,6 @@ config MODEM_PPP
 
 config MODEM_PIPE_UART
 	bool "Modem pipe to UART module"
-	depends on UART_INTERRUPT_DRIVEN
+	depends on SERIAL_SUPPORT_INTERRUPT
 
 endif

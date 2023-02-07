@@ -19,12 +19,12 @@ struct modem_chat;
 /**
  * @brief Callback called when matching command is received
  *
- * @param cmd Pointer to command handler instance
+ * @param chat Pointer to command handler instance
  * @param argv Pointer to array of parsed arguments
  * @param argc Number of parsed arguments, arg 0 holds the exact match
  * @param user_data Free to use user data set during modem_chat_init()
  */
-typedef void (*modem_chat_match_callback)(struct modem_chat *cmd, char **argv,
+typedef void (*modem_chat_match_callback)(struct modem_chat *chat, char **argv,
 					  uint16_t argc, void *user_data);
 
 /**
@@ -80,7 +80,7 @@ struct modem_chat_match {
  * @param response_matches Expected responses to request
  * @param response_matches_size Elements in expected responses
  */
-struct modem_chat_script_cmd {
+struct modem_chat_script_chat {
 	const char *request;
 	const struct modem_chat_match *const response_matches;
 	const uint16_t response_matches_size;
@@ -109,7 +109,7 @@ struct modem_chat_script_cmd {
 	}
 
 #define MODEM_CHAT_SCRIPT_CMDS_DEFINE(_sym, ...)                                \
-	const static struct modem_chat_script_cmd _sym[] = { __VA_ARGS__ }
+	const static struct modem_chat_script_chat _sym[] = { __VA_ARGS__ }
 
 enum modem_chat_script_result {
 	MODEM_CHAT_SCRIPT_RESULT_SUCCESS,
@@ -120,11 +120,11 @@ enum modem_chat_script_result {
 /**
  * @brief Callback called when script command is received
  *
- * @param cmd Pointer to command handler instance
+ * @param chat Pointer to command handler instance
  * @param result Result of script execution
  * @param user_data Free to use user data set during modem_chat_init()
  */
-typedef void (*modem_chat_script_callback)(struct modem_chat *cmd,
+typedef void (*modem_chat_script_callback)(struct modem_chat *chat,
 					  enum modem_chat_script_result result,
 					  void *user_data);
 
@@ -133,8 +133,8 @@ typedef void (*modem_chat_script_callback)(struct modem_chat *cmd,
  *
  * @param name Name of script
  * @param name_size Size of name of script
- * @param script_cmds Array of script commands
- * @param script_cmds_size Elements in array of script commands
+ * @param script_chats Array of script commands
+ * @param script_chats_size Elements in array of script commands
  * @param abort_matches Array of abort matches
  * @param abort_matches_size Elements in array of abort matches
  * @param callback Callback called when script execution terminates
@@ -142,19 +142,19 @@ typedef void (*modem_chat_script_callback)(struct modem_chat *cmd,
  */
 struct modem_chat_script {
 	const char *name;
-	const struct modem_chat_script_cmd *script_cmds;
-	const uint16_t script_cmds_size;
+	const struct modem_chat_script_chat *script_chats;
+	const uint16_t script_chats_size;
 	const struct modem_chat_match *const abort_matches;
 	const uint16_t abort_matches_size;
 	const modem_chat_script_callback callback;
 	const uint32_t timeout;
 };
 
-#define MODEM_CHAT_SCRIPT_DEFINE(_sym, _script_cmds, _abort_matches, _callback, _timeout)       \
+#define MODEM_CHAT_SCRIPT_DEFINE(_sym, _script_chats, _abort_matches, _callback, _timeout)       \
 	static struct modem_chat_script _sym = {                                                \
 		.name = #_sym,                                                                  \
-		.script_cmds = _script_cmds,                                                    \
-		.script_cmds_size = ARRAY_SIZE(_script_cmds),                                   \
+		.script_chats = _script_chats,                                                    \
+		.script_chats_size = ARRAY_SIZE(_script_chats),                                   \
 		.abort_matches = _abort_matches,                                                \
 		.abort_matches_size = ARRAY_SIZE(_abort_matches),                               \
 		.callback = _callback,                                                          \
@@ -168,21 +168,21 @@ struct modem_chat_script {
  */
 struct modem_chat_work_item {
 	struct k_work_delayable dwork;
-	struct modem_chat *cmd;
+	struct modem_chat *chat;
 };
 
 /**
  * @brief Script run work item
  *
  * @param work Work item
- * @param cmd Modem command instance
+ * @param chat Modem command instance
  * @param script Pointer to new script to run
  *
  * @note k_work struct must be placed first
  */
 struct modem_chat_script_run_work_item {
 	struct k_work work;
-	struct modem_chat *cmd;
+	struct modem_chat *chat;
 	const struct modem_chat_script *script;
 };
 
@@ -190,13 +190,13 @@ struct modem_chat_script_run_work_item {
  * @brief Script abort work item
  *
  * @param work Work item
- * @param cmd Modem command instance
+ * @param chat Modem command instance
  *
  * @note k_work struct must be placed first
  */
 struct modem_chat_script_abort_work_item {
 	struct k_work work;
-	struct modem_chat *cmd;
+	struct modem_chat *chat;
 };
 
 enum modem_chat_script_send_state {
@@ -251,7 +251,7 @@ struct modem_chat {
 	struct modem_chat_script_run_work_item script_run_work;
 	struct modem_chat_work_item script_timeout_work;
 	struct modem_chat_script_abort_work_item script_abort_work;
-	uint16_t script_cmd_it;
+	uint16_t script_chat_it;
 	atomic_t script_state;
 
 	/* Script sending */
@@ -301,7 +301,7 @@ struct modem_chat_config {
  * @brief Initialize modem pipe command handler
  * @note Command handler must be attached to pipe
  */
-int modem_chat_init(struct modem_chat *cmd, const struct modem_chat_config *config);
+int modem_chat_init(struct modem_chat *chat, const struct modem_chat_config *config);
 
 /**
  * @brief Attach modem command handler to pipe
@@ -311,12 +311,12 @@ int modem_chat_init(struct modem_chat *cmd, const struct modem_chat_config *conf
  *
  * @note Command handler is enabled if successful
  */
-int modem_chat_attach(struct modem_chat *cmd, struct modem_pipe *pipe);
+int modem_chat_attach(struct modem_chat *chat, struct modem_pipe *pipe);
 
 /**
  * @brief Run script
  *
- * @param cmd Modem command instance
+ * @param chat Modem command instance
  * @param script Script to run
  *
  * @returns 0 if successful
@@ -327,21 +327,21 @@ int modem_chat_attach(struct modem_chat *cmd, struct modem_pipe *pipe);
  * @note Script runs asynchronously until complete or aborted.
  * @note Use modem_chat_script_wait() to synchronize with script termination
  */
-int modem_chat_script_run(struct modem_chat *cmd, const struct modem_chat_script *script);
+int modem_chat_script_run(struct modem_chat *chat, const struct modem_chat_script *script);
 
 /**
  * @brief Abort script
  *
- * @param cmd Modem command instance
+ * @param chat Modem command instance
  *
  * @note Use modem_chat_script_wait() to synchronize with script termination
  */
-void modem_chat_script_abort(struct modem_chat *cmd);
+void modem_chat_script_abort(struct modem_chat *chat);
 
 /**
  * @brief Release pipe from command handler
  * @note Command handler is now disabled
  */
-int modem_chat_release(struct modem_chat *cmd);
+int modem_chat_release(struct modem_chat *chat);
 
 #endif /* ZEPHYR_MODEM_MODEM_CHAT */
