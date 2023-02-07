@@ -41,6 +41,8 @@ int modem_pipe_uart_init(struct modem_pipe_uart *context,
 
 int modem_pipe_uart_open(struct modem_pipe_uart *context, struct modem_pipe *pipe);
 
+int modem_pipe_uart_config(struct modem_pipe *pipe, const struct uart_config *cfg);
+
 int modem_pipe_uart_close(struct modem_pipe *pipe);
 
 #endif /* ZEPHYR_MODEM_MODEM_PIPE_UART */

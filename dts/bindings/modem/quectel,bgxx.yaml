@@ -1,0 +1,14 @@
+description: quectel BG9x modem
+
+compatible: "quectel,bgxx"
+include: uart-device.yaml
+# include: base.yaml
+# on-bus: uart
+
+properties:
+    mdm-status-gpios:
+      type: phandle-array
+      required: true
+    mdm-power-gpios:
+      type: phandle-array
+      required: true

@@ -1,0 +1,2 @@
+config QUECTEL_BGXX
+        bool "Enable Quectel BGXX"

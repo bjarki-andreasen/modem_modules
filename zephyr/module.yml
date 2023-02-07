@@ -4,6 +4,6 @@ name: modem_modules
 build:
   kconfig: Kconfig
   cmake: .
-#  settings:
-#    board_root: .
-#    dts_root: .
+  settings:
+    board_root: .
+    dts_root: .
