@@ -604,7 +604,7 @@ static void modem_chat_process_handler(struct k_work *item)
 	}
 }
 
-static void modem_chat_pipe_event_handler(struct modem_pipe *pipe, enum modem_pipe_event event,
+static void modem_chat_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_event event,
 					 void *user_data)
 {
 	struct modem_chat *chat = (struct modem_chat *)user_data;
@@ -682,7 +682,7 @@ int modem_chat_attach(struct modem_chat *chat, struct modem_pipe *pipe)
 	modem_chat_parse_reset(chat);
 
 	/* Set pipe event handler */
-	return modem_pipe_event_handler_set(pipe, modem_chat_pipe_event_handler, chat);
+	return modem_pipe_callback_set(pipe, modem_chat_pipe_callback, chat);
 }
 
 int modem_chat_script_run(struct modem_chat *chat, const struct modem_chat_script *script)
@@ -745,7 +745,7 @@ int modem_chat_release(struct modem_chat *chat)
 	}
 
 	/* Release pipe */
-	modem_pipe_event_handler_set(chat->pipe, NULL, NULL);
+	modem_pipe_callback_set(chat->pipe, NULL, NULL);
 
 	/* Cancel all work */
 	struct k_work_sync sync;

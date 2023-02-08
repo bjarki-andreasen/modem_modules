@@ -125,70 +125,17 @@ static uint8_t *chat_argv[32];
 /*************************************************************************************************/
 /*                                          Modem PPP                                            */
 /*************************************************************************************************/
-static struct modem_ppp ppp;
-static uint8_t ppp_rx_buf[16];
-static uint8_t ppp_tx_buf[16];
-
-/*************************************************************************************************/
-/*                                  PPP L2 networking interface                                  */
-/*************************************************************************************************/
-static uint8_t ppp_iface_link_addr[6];
-static struct net_if *ppp_iface;
-
-static int ppp_iface_init(const struct device *dev)
+static void ppp_iface_init(struct net_if *iface)
 {
-	return 0;
-}
-
-static void ppp_iface_api_init(struct net_if *iface)
-{
-	ppp_iface = iface;
-
-	net_ppp_init(iface);
-
 	net_if_flag_set(iface, NET_IF_NO_AUTO_START);
-
-	/* Fixed test link address */
-	ppp_iface_link_addr[0] = 0x00;
-	ppp_iface_link_addr[1] = 0x00;
-	ppp_iface_link_addr[2] = 0x5E;
-	ppp_iface_link_addr[3] = 0x00;
-	ppp_iface_link_addr[4] = 0x53;
-	ppp_iface_link_addr[5] = 0x01;
-
-	net_if_set_link_addr(iface, ppp_iface_link_addr, sizeof(ppp_iface_link_addr),
-			     NET_LINK_ETHERNET);
 }
 
-static int ppp_iface_ppp_api_start(const struct device *dev)
-{
-	return 0;
-}
-
-static int ppp_iface_ppp_api_stop(const struct device *dev)
-{
-	return 0;
-}
-
-static int ppp_iface_ppp_api_send(const struct device *dev, struct net_pkt *pkt)
-{
-	return modem_ppp_send(&ppp, pkt);
-}
-
-static const struct ppp_api ppp_iface_ppp_api = {
-	.iface_api.init = ppp_iface_api_init,
-	.start = ppp_iface_ppp_api_start,
-	.stop = ppp_iface_ppp_api_stop,
-	.send = ppp_iface_ppp_api_send,
-};
-
-NET_DEVICE_INIT(ppp_iface, "ppp_iface", ppp_iface_init, NULL, NULL, NULL, 41,
-		&ppp_iface_ppp_api, PPP_L2, NET_L2_GET_CTX_TYPE(PPP_L2), 1500);
+MODEM_PPP_DEFINE(ppp, ppp_iface_init, 41, 1500, 64);
 
 /*************************************************************************************************/
 /*                                     Chat script matches                                       */
 /*************************************************************************************************/
-static uint8_t imei[32];
+static uint8_t imei[15];
 static uint8_t access_tech;
 static uint8_t registration_status;
 static uint8_t packet_service_attached;
@@ -199,7 +146,13 @@ static void on_imei(struct modem_chat *chat, char **argv, uint16_t argc, void *u
 		return;
 	}
 
-	strncpy(imei, argv[1], ARRAY_SIZE(imei));
+	if (strlen(argv[1]) != 15) {
+		return;
+	}
+
+	for (uint8_t i = 0; i < 15; i++) {
+		imei[i] = argv[1][i] - '0';
+	}
 }
 
 static void on_creg(struct modem_chat *chat, char **argv, uint16_t argc, void *user_data)
@@ -303,16 +256,6 @@ MODEM_CHAT_SCRIPT_DEFINE(connect_chat_script, connect_chat_script_cmds, abort_ma
 			 modem_chat_callback_handler, 120);
 
 /*************************************************************************************************/
-/*                                    Disconnect chat script                                     */
-/*************************************************************************************************/
-MODEM_CHAT_SCRIPT_CMDS_DEFINE(disconnect_chat_script_cmds,
-	MODEM_CHAT_SCRIPT_CMD_RESP_NONE("+++ATH")
-);
-
-MODEM_CHAT_SCRIPT_DEFINE(disconnect_chat_script, disconnect_chat_script_cmds, abort_matches,
-			 modem_chat_callback_handler, 10);
-
-/*************************************************************************************************/
 /*                                       Network manager                                         */
 /*************************************************************************************************/
 static struct net_mgmt_event_callback mgmt_cb;
@@ -405,7 +348,7 @@ void main(void)
 	/*
 	 * Initialize the modem CMUX module. CMUX is used to create multiple virtual channels
 	 * between the modem and the host. This allows for sending PPP traffic alongside AT
-	 * commands on a single UART.
+	 * commands on a single serial connection like UART.
 	 */
 	const struct modem_cmux_config cmux_config = {
 		.callback = modem_cmux_callback_handler,
@@ -447,21 +390,6 @@ void main(void)
 	/* Initialize chat script result callback sem */
 	k_event_init(&sample_event);
 
-	/*
-	 * Initialize the modem PPP module.
-	 */
-	const struct modem_ppp_config ppp_config = {
-		.rx_buf = ppp_rx_buf,
-		.rx_buf_size = ARRAY_SIZE(ppp_rx_buf),
-		.tx_buf = ppp_tx_buf,
-		.tx_buf_size = ARRAY_SIZE(ppp_tx_buf),
-	};
-
-	ret = modem_ppp_init(&ppp, &ppp_config);
-	if (ret < 0) {
-		return;
-	}
-
 	/* Power on cellular modem
 	pm_device_action_run(cellular_modem, PM_DEVICE_ACTION_TURN_ON);
 	pm_device_action_run(cellular_modem, PM_DEVICE_ACTION_RESUME);
@@ -491,6 +419,10 @@ void main(void)
 	if (chat_script_wait() == false) {
 		return;
 	}
+
+	/* Set IMEI as net link address */
+	net_if_set_link_addr(modem_ppp_get_iface(&ppp), imei, ARRAY_SIZE(imei),
+			     NET_LINK_UNKNOWN);
 
 	/* Release bus pipe */
 	ret = modem_chat_release(&chat);
@@ -579,7 +511,7 @@ void main(void)
 	}
 
 	/* Attach modem PPP module to DLCI channel 2 which is now in PPP mode */
-	ret = modem_ppp_attach(&ppp, &dlci2_pipe, ppp_iface);
+	ret = modem_ppp_attach(&ppp, &dlci2_pipe);
 	if (ret < 0) {
 		return;
 	}
@@ -610,7 +542,7 @@ void main(void)
 	}
 
 	/* Bring up PPP network interface */
-	net_ppp_carrier_on(ppp_iface);
+	net_ppp_carrier_on(modem_ppp_get_iface(&ppp));
 
 	/* Wait for network layer 4 connected */
 	if (event_wait_all(SAMPLE_EVENT_NET_L4_CONNECTED, false) == false) {
@@ -622,7 +554,7 @@ void main(void)
 	k_msleep(5000);
 
 	/* Bring down PPP network interface */
-	net_ppp_carrier_off(ppp_iface);
+	net_ppp_carrier_off(modem_ppp_get_iface(&ppp));
 
 	/* Wait for network layer 4 disconnected */
 	if (event_wait_all(SAMPLE_EVENT_NET_L4_DISCONNECTED, false) == false) {
@@ -631,8 +563,7 @@ void main(void)
 
 	printk("Network L4 disconnected\n");
 
-	/* Disconnect causes fault ATM ... */
-	return;
+	k_msleep(1000);
 
 	/* Release modem chat module from DLCI channel 1 */
 	ret = modem_chat_release(&chat);

@@ -21,8 +21,8 @@ struct modem_pipe_uart {
 	uint8_t rx_rdb_used;
 	struct ring_buf tx_rb;
 	struct modem_pipe *pipe;
-	modem_pipe_event_handler_t pipe_event_handler;
-	void *pipe_event_handler_user_data;
+	modem_pipe_callback pipe_callback;
+	void *pipe_callback_user_data;
 	bool opened;
 };
 

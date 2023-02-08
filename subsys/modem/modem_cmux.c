@@ -103,8 +103,8 @@ static void modem_cmux_dlci_pipe_raise_event(struct modem_cmux_dlci *dlci,
 					     enum modem_pipe_event event)
 {
 	/* Notify pipe closed */
-	if (dlci->pipe_event_handler != NULL) {
-		dlci->pipe_event_handler(dlci->pipe, event, dlci->pipe_event_handler_user_data);
+	if (dlci->pipe_callback != NULL) {
+		dlci->pipe_callback(dlci->pipe, event, dlci->pipe_callback_user_data);
 	}
 }
 
@@ -152,13 +152,13 @@ static void modem_cmux_dlci_deinit(struct modem_cmux_dlci *dlci)
 	modem_cmux_dlci_pipe_raise_event(dlci, MODEM_PIPE_EVENT_CLOSED);
 
 	/* Release pipe */
-	modem_pipe_event_handler_set(dlci->pipe, NULL, NULL);
+	modem_pipe_callback_set(dlci->pipe, NULL, NULL);
 
 	dlci->dlci_address = 0;
 	dlci->cmux = NULL;
 	dlci->pipe = NULL;
-	dlci->pipe_event_handler = NULL;
-	dlci->pipe_event_handler_user_data = NULL;
+	dlci->pipe_callback = NULL;
+	dlci->pipe_callback_user_data = NULL;
 	ring_buf_reset(&dlci->receive_rb);
 	dlci->state = MODEM_CMUX_DLCI_STATE_CLOSED;
 }
@@ -200,7 +200,7 @@ static void modem_cmux_raise_event(struct modem_cmux *cmux, struct modem_cmux_ev
 	cmux->callback(cmux, event, cmux->user_data);
 }
 
-static void modem_cmux_bus_event_handler(struct modem_pipe *pipe, enum modem_pipe_event event,
+static void modem_cmux_bus_callback(struct modem_pipe *pipe, enum modem_pipe_event event,
 					 void *user_data)
 {
 	struct modem_cmux *cmux = (struct modem_cmux *)user_data;
@@ -400,7 +400,7 @@ static void modem_cmux_process_on_frame_received_uih_control(struct modem_cmux *
 			modem_cmux_raise_event(cmux, cmux_event);
 
 			/* Release bus pipe */
-			modem_pipe_event_handler_set(cmux->pipe, NULL, NULL);
+			modem_pipe_callback_set(cmux->pipe, NULL, NULL);
 			cmux->pipe = NULL;
 
 			return;
@@ -708,8 +708,8 @@ static void modem_cmux_process_received(struct k_work *item)
 /*************************************************************************************************
  * Thread-safe DLCI channel pipe API
  *************************************************************************************************/
-static int modem_cmux_dlci_pipe_event_handler_set(struct modem_pipe *pipe,
-						  modem_pipe_event_handler_t handler,
+static int modem_cmux_dlci_pipe_callback_set(struct modem_pipe *pipe,
+						  modem_pipe_callback handler,
 						  void *user_data)
 {
 	struct modem_cmux_dlci *dlci = (struct modem_cmux_dlci *)pipe->data;
@@ -717,8 +717,8 @@ static int modem_cmux_dlci_pipe_event_handler_set(struct modem_pipe *pipe,
 
 	k_mutex_lock(&cmux->lock, K_FOREVER);
 
-	dlci->pipe_event_handler = handler;
-	dlci->pipe_event_handler_user_data = user_data;
+	dlci->pipe_callback = handler;
+	dlci->pipe_callback_user_data = user_data;
 
 	k_mutex_unlock(&cmux->lock);
 
@@ -772,7 +772,7 @@ static int modem_cmux_dlci_pipe_receive(struct modem_pipe *pipe, uint8_t *buf, u
 }
 
 struct modem_pipe_driver_api modem_cmux_dlci_pipe_api = {
-	.event_handler_set = modem_cmux_dlci_pipe_event_handler_set,
+	.callback_set = modem_cmux_dlci_pipe_callback_set,
 	.transmit = modem_cmux_dlci_pipe_transmit,
 	.receive = modem_cmux_dlci_pipe_receive,
 };
@@ -789,8 +789,8 @@ static void modem_cmux_dlci_init(struct modem_cmux *cmux, struct modem_cmux_dlci
 	dlci->pipe = pipe;
 	dlci->pipe->data = dlci;
 	pipe->api = &modem_cmux_dlci_pipe_api;
-	dlci->pipe_event_handler = NULL;
-	dlci->pipe_event_handler_user_data = NULL;
+	dlci->pipe_callback = NULL;
+	dlci->pipe_callback_user_data = NULL;
 	ring_buf_init(&dlci->receive_rb, receive_buf_size, receive_buf);
 	k_mutex_init(&dlci->receive_rb_lock);
 	dlci->state = MODEM_CMUX_DLCI_STATE_CLOSED;
@@ -860,7 +860,7 @@ int modem_cmux_connect(struct modem_cmux *cmux, struct modem_pipe *pipe)
 
 	/* Attach bus pipe */
 	cmux->pipe = pipe;
-	ret = modem_pipe_event_handler_set(cmux->pipe, modem_cmux_bus_event_handler, cmux);
+	ret = modem_pipe_callback_set(cmux->pipe, modem_cmux_bus_callback, cmux);
 	if (ret < 0) {
 		k_mutex_unlock(&cmux->lock);
 		return ret;
@@ -1031,7 +1031,7 @@ int modem_cmux_disconnect(struct modem_cmux *cmux)
 	k_msleep(300);
 
 	/* Release bus pipe */
-	modem_pipe_event_handler_set(cmux->pipe, NULL, NULL);
+	modem_pipe_callback_set(cmux->pipe, NULL, NULL);
 
 	/* Cancel work */
 	struct k_work_sync sync;

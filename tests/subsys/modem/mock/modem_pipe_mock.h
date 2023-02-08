@@ -22,8 +22,8 @@ struct modem_pipe_mock_work {
 struct modem_pipe_mock {
 	/* Pipe */
 	struct modem_pipe *pipe;
-	modem_pipe_event_handler_t pipe_event_handler;
-	void *pipe_event_handler_user_data;
+	modem_pipe_callback pipe_callback;
+	void *pipe_callback_user_data;
 
 	/* Ring buffers */
 	struct ring_buf rx_rb;

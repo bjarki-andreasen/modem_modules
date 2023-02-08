@@ -3,8 +3,8 @@
 
 #include <string.h>
 
-static int modem_pipe_mock_pipe_event_handler_set(struct modem_pipe *pipe,
-						  modem_pipe_event_handler_t handler,
+static int modem_pipe_mock_pipe_callback_set(struct modem_pipe *pipe,
+						  modem_pipe_callback handler,
 						  void *user_data)
 {
 	struct modem_pipe_mock *mock = (struct modem_pipe_mock *)pipe->data;
@@ -14,8 +14,8 @@ static int modem_pipe_mock_pipe_event_handler_set(struct modem_pipe *pipe,
 		return -EPERM;
 	}
 
-	mock->pipe_event_handler = handler;
-	mock->pipe_event_handler_user_data = user_data;
+	mock->pipe_callback = handler;
+	mock->pipe_callback_user_data = user_data;
 
 	return 0;
 }
@@ -35,7 +35,7 @@ static int modem_pipe_mock_pipe_receive(struct modem_pipe *pipe, uint8_t *buf, s
 }
 
 struct modem_pipe_driver_api modem_pipe_mock_api = {
-	.event_handler_set = modem_pipe_mock_pipe_event_handler_set,
+	.callback_set = modem_pipe_mock_pipe_callback_set,
 	.transmit = modem_pipe_mock_pipe_transmit,
 	.receive = modem_pipe_mock_pipe_receive,
 };
@@ -45,12 +45,12 @@ static void modem_pipe_mock_received_handler(struct k_work *item)
 	struct modem_pipe_mock_work *mock_work_item = (struct modem_pipe_mock_work *)item;
 	struct modem_pipe_mock *mock = mock_work_item->mock;
 
-	if (mock->pipe_event_handler == NULL) {
+	if (mock->pipe_callback == NULL) {
 		return;
 	}
 
-	mock->pipe_event_handler(mock->pipe, MODEM_PIPE_EVENT_RECEIVE_READY,
-				 mock->pipe_event_handler_user_data);
+	mock->pipe_callback(mock->pipe, MODEM_PIPE_EVENT_RECEIVE_READY,
+				 mock->pipe_callback_user_data);
 }
 
 int modem_pipe_mock_init(struct modem_pipe_mock *mock, const struct modem_pipe_mock_config *config)

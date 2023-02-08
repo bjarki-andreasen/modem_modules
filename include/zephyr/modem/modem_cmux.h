@@ -74,8 +74,8 @@ struct modem_cmux_dlci {
 	uint16_t dlci_address;
 	struct modem_cmux *cmux;
 	struct modem_pipe *pipe;
-	modem_pipe_event_handler_t pipe_event_handler;
-	void *pipe_event_handler_user_data;
+	modem_pipe_callback pipe_callback;
+	void *pipe_callback_user_data;
 
 	/* Receive buffer */
 	struct ring_buf receive_rb;

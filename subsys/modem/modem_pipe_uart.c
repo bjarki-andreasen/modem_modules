@@ -17,12 +17,12 @@ LOG_MODULE_REGISTER(modem_pipe_uart);
 static void modem_pipe_uart_invoke_receive_ready_event(struct modem_pipe_uart *context)
 {
 	/* Validate event handler set */
-	if (context->pipe_event_handler == NULL) {
+	if (context->pipe_callback == NULL) {
 		return;
 	}
 
-	context->pipe_event_handler(context->pipe, MODEM_PIPE_EVENT_RECEIVE_READY,
-				    context->pipe_event_handler_user_data);
+	context->pipe_callback(context->pipe, MODEM_PIPE_EVENT_RECEIVE_READY,
+				    context->pipe_callback_user_data);
 }
 
 static void modem_pipe_uart_irq_handler_rx_ready(struct modem_pipe_uart *context)
@@ -114,8 +114,8 @@ static void modem_pipe_uart_flush(struct modem_pipe_uart *context)
 	}
 }
 
-static int modem_pipe_uart_pipe_event_handler_set(struct modem_pipe *pipe,
-						  modem_pipe_event_handler_t handler,
+static int modem_pipe_uart_pipe_callback_set(struct modem_pipe *pipe,
+						  modem_pipe_callback handler,
 						  void *user_data)
 {
 	struct modem_pipe_uart *context = (struct modem_pipe_uart *)pipe->data;
@@ -129,8 +129,8 @@ static int modem_pipe_uart_pipe_event_handler_set(struct modem_pipe *pipe,
 	uart_irq_tx_disable(context->uart);
 
 	context->pipe = pipe;
-	context->pipe_event_handler = handler;
-	context->pipe_event_handler_user_data = user_data;
+	context->pipe_callback = handler;
+	context->pipe_callback_user_data = user_data;
 
 	uart_irq_rx_enable(context->uart);
 	uart_irq_tx_enable(context->uart);
@@ -193,7 +193,7 @@ static int modem_pipe_uart_receive(struct modem_pipe *pipe, uint8_t *buf, uint32
 }
 
 struct modem_pipe_driver_api modem_pipe_uart_api = {
-	.event_handler_set = modem_pipe_uart_pipe_event_handler_set,
+	.callback_set = modem_pipe_uart_pipe_callback_set,
 	.transmit = modem_pipe_uart_transmit,
 	.receive = modem_pipe_uart_receive,
 };
@@ -283,8 +283,8 @@ int modem_pipe_uart_close(struct modem_pipe *pipe)
 
 	/* Update context */
 	context->pipe = NULL;
-	context->pipe_event_handler = NULL;
-	context->pipe_event_handler_user_data = NULL;
+	context->pipe_callback = NULL;
+	context->pipe_callback_user_data = NULL;
 	context->opened = false;
 
 	uart_irq_rx_disable(context->uart);

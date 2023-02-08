@@ -12,18 +12,17 @@
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_pkt.h>
 #include "zephyr/net/net_l2.h"
+#include "zephyr/net/ppp.h"
 #include <string.h>
 
 #include <zephyr/modem/modem_ppp.h>
 #include <modem_pipe_mock.h>
 
-/*************************************************************************************************/
-/*                                         Instances                                             */
-/*************************************************************************************************/
-static struct modem_ppp ppp;
-static uint8_t ppp_rx_buf[16];
-static uint8_t ppp_tx_buf[16];
+#define TEST_MODEM_PPP_BUF_SIZE (16)
 
+/*************************************************************************************************/
+/*                                          Mock pipe                                            */
+/*************************************************************************************************/
 static struct modem_pipe_mock mock;
 static uint8_t mock_rx_buf[128];
 static uint8_t mock_tx_buf[128];
@@ -75,6 +74,8 @@ static uint8_t buffer[4096];
 /*************************************************************************************************/
 /*                                  Mock network interface                                       */
 /*************************************************************************************************/
+static uint8_t test_net_link_addr[] = {0x00, 0x00, 0x5E, 0x00, 0x53, 0x01};
+
 static enum net_verdict test_net_l2_recv(struct net_if *iface, struct net_pkt *pkt)
 {
 	/* Validate buffer not overflowing */
@@ -88,12 +89,13 @@ static enum net_verdict test_net_l2_recv(struct net_if *iface, struct net_pkt *p
 	return NET_OK;
 }
 
+/* This emulates the layer two API */
 static struct net_l2 test_net_l2 = {
 	.recv = test_net_l2_recv,
 };
 
-static uint8_t test_net_link_addr[] = {0x00, 0x00, 0x5E, 0x00, 0x53, 0x01};
 
+/* This emulates the network interface device which will receive unwrapped network packets */
 static struct net_if_dev test_net_if_dev = {
 	.l2 = &test_net_l2,
 	.link_addr.addr = test_net_link_addr,
@@ -103,22 +105,56 @@ static struct net_if_dev test_net_if_dev = {
 	.oper_state = NET_IF_OPER_UP,
 };
 
+/* This emulates the network interface which contains the network interface device */
 static struct net_if test_iface = {
-	.if_dev = &test_net_if_dev
+	.if_dev = &test_net_if_dev,
 };
 
+/*************************************************************************************************/
+/*                                         Modem PPP                                             */
+/*************************************************************************************************/
+/*
+ * The following initialization happens automatically when MODEM_PPP_DEFINE is used. However,
+ * since we are emulating the network interface, we can't use that macro, and have to initialize
+ * it manually here.
+ */
+static uint8_t ppp_receive_buf[TEST_MODEM_PPP_BUF_SIZE];
+static uint8_t ppp_transmit_buf[TEST_MODEM_PPP_BUF_SIZE];
+
+static struct modem_ppp ppp = {
+	.iface = &test_iface,
+	.receive_buf = ppp_receive_buf,
+	.transmit_buf = ppp_transmit_buf,
+	.buf_size = TEST_MODEM_PPP_BUF_SIZE,
+};
+
+/*************************************************************************************************/
+/*                                     Modem PPP net device                                      */
+/*************************************************************************************************/
+extern const struct ppp_api modem_ppp_ppp_api;
+
+static const struct device ppp_net_dev = {
+	.data = &ppp
+};
+
+static int test_net_send(struct net_pkt *pkt)
+{
+	return modem_ppp_ppp_api.send(&ppp_net_dev, pkt);
+}
+
+/*************************************************************************************************/
+/*                                     Modem PPP net device                                      */
+/*************************************************************************************************/
 static void *test_modem_ppp_setup(void)
 {
-	net_if_flag_set(&test_iface, NET_IF_UP);
+	/*
+	 * Manually run internal init function which would normally be performed by kernel as
+	 * result of using the macro MODEM_PPP_DEFINE()
+	 */
+	zassert_true(modem_ppp_init_internal(&ppp_net_dev) == 0,
+		     "Failed to run internal init");
 
-	const struct modem_ppp_config ppp_config = {
-		.rx_buf = ppp_rx_buf,
-		.rx_buf_size = sizeof(ppp_rx_buf),
-		.tx_buf = ppp_tx_buf,
-		.tx_buf_size = sizeof(ppp_tx_buf),
-	};
-
-	zassert(modem_ppp_init(&ppp, &ppp_config) == 0, "Failed to init modem PPP");
+	net_if_flag_set(modem_ppp_get_iface(&ppp), NET_IF_UP);
 
 	const struct modem_pipe_mock_config mock_config = {
 		.rx_buf = mock_rx_buf,
@@ -127,12 +163,14 @@ static void *test_modem_ppp_setup(void)
 		.tx_buf_size = sizeof(mock_tx_buf),
 	};
 
-	zassert(modem_pipe_mock_init(&mock, &mock_config) == 0, "Failed to init modem pipe mock");
+	zassert_true(modem_pipe_mock_init(&mock, &mock_config) == 0,
+		     "Failed to init modem pipe mock");
 
-	zassert(modem_pipe_mock_open(&mock, &mock_pipe) == 0, "Failed to open pipe mock");
+	zassert_true(modem_pipe_mock_open(&mock, &mock_pipe) == 0,
+		     "Failed to open pipe mock");
 
-	zassert(modem_ppp_attach(&ppp, &mock_pipe, &test_iface) == 0,
-		"Failed to attach pipe mock to modem ppp");
+	zassert_true(modem_ppp_attach(&ppp, &mock_pipe) == 0,
+		     "Failed to attach pipe mock to modem ppp");
 
 	return NULL;
 }
@@ -229,7 +267,9 @@ ZTEST(modem_ppp, ppp_frame_send)
 	net_pkt_set_ppp(pkt, true);
 
 	/* Send network packet */
-	zassert_true(modem_ppp_send(&ppp, pkt) == 0, "Failed to send PPP pkt");
+
+
+	zassert_true(test_net_send(pkt) == 0, "Failed to send PPP pkt");
 
 	/* Give modem ppp time to wrap and send frame */
 	k_msleep(1000);
@@ -291,7 +331,7 @@ ZTEST(modem_ppp, ip_frame_send)
 	net_pkt_set_family(pkt, AF_INET);
 
 	/* Send network packet */
-	modem_ppp_send(&ppp, pkt);
+	test_net_send(pkt);
 
 	/* Give modem ppp time to wrap and send frame */
 	k_msleep(1000);

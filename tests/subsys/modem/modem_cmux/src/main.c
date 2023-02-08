@@ -141,7 +141,7 @@ static uint8_t cmux_frame_data_dlci2_ppp_18[] = {
 	0x3C, 0x90, 0x7E
 };
 
-static void test_modem_cmux_event_handler(struct modem_cmux *cmux, struct modem_cmux_event event,
+static void test_modem_cmux_callback(struct modem_cmux *cmux, struct modem_cmux_event event,
 					    void *user_data)
 {
 
@@ -180,13 +180,13 @@ static void test_modem_cmux_event_handler(struct modem_cmux *cmux, struct modem_
 	}
 }
 
-static void test_modem_cmux_dlci1_pipe_event_handler(struct modem_pipe *pipe,
+static void test_modem_cmux_dlci1_pipe_callback(struct modem_pipe *pipe,
 						     enum modem_pipe_event event, void *user_data)
 {
 
 }
 
-static void test_modem_cmux_dlci2_pipe_event_handler(struct modem_pipe *pipe,
+static void test_modem_cmux_dlci2_pipe_callback(struct modem_pipe *pipe,
 						     enum modem_pipe_event event, void *user_data)
 {
 
@@ -211,10 +211,10 @@ static void *test_modem_cmux_setup(void)
 	k_event_init(&cmux_event);
 
 	struct modem_cmux_config cmux_config = {
-		.event_handler = test_modem_cmux_event_handler,
-		.event_handler_user_data = NULL,
+		.callback = test_modem_cmux_callback,
+		.user_data = NULL,
 		.dlcis = dlcis,
-		.dlcis_cnt = ARRAY_SIZE(dlcis),
+		.dlcis_size = ARRAY_SIZE(dlcis),
 		.receive_buf = cmux_receive_buf,
 		.receive_buf_size = sizeof(cmux_receive_buf),
 		.receive_timeout = K_MSEC(3),
@@ -267,10 +267,10 @@ static void *test_modem_cmux_setup(void)
 	zassert_true((events & EVENT_CMUX_DLCI2_OPEN), "DLCI2 open event not raised");
 
 	/* Set DLCI channel event handlers */
-	modem_pipe_event_handler_set(&dlci1_pipe, test_modem_cmux_dlci1_pipe_event_handler,
+	modem_pipe_callback_set(&dlci1_pipe, test_modem_cmux_dlci1_pipe_callback,
 				     NULL);
 
-	modem_pipe_event_handler_set(&dlci2_pipe, test_modem_cmux_dlci1_pipe_event_handler,
+	modem_pipe_callback_set(&dlci2_pipe, test_modem_cmux_dlci1_pipe_callback,
 				     NULL);
 
 	return NULL;

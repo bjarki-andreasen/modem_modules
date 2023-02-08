@@ -1,20 +1,13 @@
 #include <zephyr/net/ppp.h>
 #include <zephyr/sys/crc.h>
-#include <zephyr/logging/log.h>
-
+#include <zephyr/modem/modem_ppp.h>
 #include <string.h>
 
-#include <zephyr/modem/modem_ppp.h>
-
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(modem_ppp);
-/*********************************************************
- * DEFINES / MACROS
- *********************************************************/
+
 #define MODEM_PPP_FRAME_TAIL_SIZE (2)
 
-/*********************************************************
- * LOCAL FUNCTIONS
- *********************************************************/
 static uint16_t modem_ppp_fcs_init(uint8_t byte)
 {
 	return crc16_ccitt(0xFFFF, &byte, 1);
@@ -251,7 +244,7 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 
 	case MODEM_PPP_RECEIVE_STATE_HDR_23:
 		if (byte == 0x23) {
-			ppp->pkt = net_pkt_rx_alloc_with_buffer(ppp->net_iface, 256, AF_UNSPEC, 0,
+			ppp->pkt = net_pkt_rx_alloc_with_buffer(ppp->iface, 256, AF_UNSPEC, 0,
 								K_NO_WAIT);
 
 			if (ppp->pkt == NULL) {
@@ -285,7 +278,7 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 			net_pkt_set_ppp(ppp->pkt, true);
 
 			/* Receive on network interface */
-			net_recv_data(ppp->net_iface, ppp->pkt);
+			net_recv_data(ppp->iface, ppp->pkt);
 
 			/* Remove reference to network packet */
 			ppp->pkt = NULL;
@@ -333,14 +326,7 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 	}
 }
 
-static void modem_ppp_process_received_data(struct modem_ppp *ppp)
-{
-	for (size_t i = 0; i < ppp->rx_buf_len; i++) {
-		modem_ppp_process_received_byte(ppp, ppp->rx_buf[i]);
-	}
-}
-
-static void modem_ppp_pipe_event_handler(struct modem_pipe *pipe, enum modem_pipe_event event,
+static void modem_ppp_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_event event,
 					 void *user_data)
 {
 	struct modem_ppp *ppp = (struct modem_ppp *)user_data;
@@ -389,10 +375,10 @@ static void modem_ppp_send_handler(struct k_work *item)
 		}
 
 		/* Fill transmit ring buffer */
-		while (ring_buf_space_get(&ppp->tx_rb) > 0) {
+		while (ring_buf_space_get(&ppp->transmit_rb) > 0) {
 			byte = modem_ppp_wrap_net_pkt_byte(ppp);
 
-			ring_buf_put(&ppp->tx_rb, &byte, 1);
+			ring_buf_put(&ppp->transmit_rb, &byte, 1);
 
 			if (ppp->transmit_state == MODEM_PPP_TRANSMIT_STATE_IDLE) {
 				net_pkt_unref(ppp->tx_pkt);
@@ -405,16 +391,16 @@ static void modem_ppp_send_handler(struct k_work *item)
 	}
 
 	/* Reserve data to transmit from transmit ring buffer */
-	reserved_size = ring_buf_get_claim(&ppp->tx_rb, &reserved, UINT32_MAX);
+	reserved_size = ring_buf_get_claim(&ppp->transmit_rb, &reserved, UINT32_MAX);
 
 	/* Transmit reserved data */
 	ret = modem_pipe_transmit(ppp->pipe, reserved, reserved_size);
 
 	/* Release remaining reserved data */
-	ring_buf_get_finish(&ppp->tx_rb, (uint32_t)ret);
+	ring_buf_get_finish(&ppp->transmit_rb, (uint32_t)ret);
 
 	/* Resubmit send work if data remains */
-	if ((ring_buf_is_empty(&ppp->tx_rb) == false) || (ppp->tx_pkt != NULL)) {
+	if ((ring_buf_is_empty(&ppp->transmit_rb) == false) || (ppp->tx_pkt != NULL)) {
 		k_work_submit(&ppp->send_work.work);
 	}
 }
@@ -426,89 +412,53 @@ static void modem_ppp_process_handler(struct k_work *item)
 	int ret;
 
 	/* Receive data from pipe */
-	ret = modem_pipe_receive(ppp->pipe, ppp->rx_buf, ppp->rx_buf_size);
+	ret = modem_pipe_receive(ppp->pipe, ppp->receive_buf, ppp->buf_size);
 
 	/* Validate data received */
 	if (ret < 1) {
 		return;
 	}
 
-	/* Save received data length */
-	ppp->rx_buf_len = (uint16_t)ret;
-
 	/* Process received data */
-	modem_ppp_process_received_data(ppp);
+	for (int i = 0; i < ret; i++) {
+		modem_ppp_process_received_byte(ppp, ppp->receive_buf[i]);
+	}
 
-	/* Schedule receive handler if data remains */
-	if (ppp->rx_buf_size == ppp->rx_buf_len) {
+	/* Resubmit receive handler if data remains */
+	if (ret == ppp->buf_size) {
 		k_work_submit(&ppp->process_work.work);
 	}
 }
 
-/*********************************************************
- * GLOBAL FUNCTIONS
- *********************************************************/
-int modem_ppp_init(struct modem_ppp *ppp, const struct modem_ppp_config *config)
+static void modem_ppp_ppp_api_init(struct net_if *iface)
 {
-	/* Validate arguments */
-	if ((ppp == NULL) || (config == NULL)) {
-		return -EINVAL;
+	const struct device *dev = net_if_get_device(iface);
+
+	struct modem_ppp *ppp = (struct modem_ppp *)dev->data;
+
+	net_ppp_init(iface);
+
+	if (ppp->init_iface != NULL) {
+		ppp->init_iface(iface);
 	}
 
-	/* Validate configuration */
-	if ((config->rx_buf == NULL) || (config->rx_buf_size == 0) || (config->tx_buf == NULL) ||
-	    (config->tx_buf_size == 0)) {
-		return -EINVAL;
-	}
+	ppp->iface = iface;
+}
 
-	/* Clear PPP instance */
-	memset(ppp, 0x00, sizeof(*ppp));
-
-	/* Copy configuration */
-	ppp->rx_buf = config->rx_buf;
-	ppp->rx_buf_size = config->rx_buf_size;
-
-	/* Initialize ring buffer */
-	ring_buf_init(&ppp->tx_rb, config->tx_buf_size, config->tx_buf);
-
-	/* Initialize send submit work */
-	ppp->send_submit_work.ppp = ppp;
-	k_work_init(&ppp->send_submit_work.work, modem_ppp_send_submit_handler);
-
-	/* Initialize send work */
-	ppp->send_work.ppp = ppp;
-	k_work_init(&ppp->send_work.work, modem_ppp_send_handler);
-
-	/* Initialize process work */
-	ppp->process_work.ppp = ppp;
-	k_work_init(&ppp->process_work.work, modem_ppp_process_handler);
-
+static int modem_ppp_ppp_api_start(const struct device *dev)
+{
 	return 0;
 }
 
-int modem_ppp_attach(struct modem_ppp *ppp, struct modem_pipe *pipe, struct net_if *iface)
+static int modem_ppp_ppp_api_stop(const struct device *dev)
 {
-	int ret;
-
-	/* Associate command handler with pipe and network interface */
-	ppp->net_iface = iface;
-	ppp->pipe = pipe;
-
-	/* Set pipe event handler */
-	ret = modem_pipe_event_handler_set(pipe, modem_ppp_pipe_event_handler, ppp);
-
-	if (ret < 0) {
-		ppp->net_iface = NULL;
-		ppp->pipe = NULL;
-
-		return ret;
-	}
-
 	return 0;
 }
 
-int modem_ppp_send(struct modem_ppp *ppp, struct net_pkt *pkt)
+static int modem_ppp_ppp_api_send(const struct device *dev, struct net_pkt *pkt)
 {
+	struct modem_ppp *ppp = (struct modem_ppp *)dev->data;
+
 	/* Validate packet protocol */
 	if ((net_pkt_is_ppp(pkt) == false) && (net_pkt_family(pkt) != AF_INET) &&
 	    (net_pkt_family(pkt) != AF_INET6)) {
@@ -538,24 +488,69 @@ int modem_ppp_send(struct modem_ppp *ppp, struct net_pkt *pkt)
 	return 0;
 }
 
+const struct ppp_api modem_ppp_ppp_api = {
+	.iface_api.init = modem_ppp_ppp_api_init,
+	.start = modem_ppp_ppp_api_start,
+	.stop = modem_ppp_ppp_api_stop,
+	.send = modem_ppp_ppp_api_send,
+};
+
+int modem_ppp_attach(struct modem_ppp *ppp, struct modem_pipe *pipe)
+{
+	int ret;
+
+	ppp->pipe = pipe;
+
+	ret = modem_pipe_callback_set(pipe, modem_ppp_pipe_callback, ppp);
+
+	if (ret < 0) {
+		ppp->pipe = NULL;
+
+		return ret;
+	}
+
+	return 0;
+}
+
+struct net_if *modem_ppp_get_iface(struct modem_ppp *ppp)
+{
+	return ppp->iface;
+}
+
 int modem_ppp_release(struct modem_ppp *ppp)
 {
 	struct k_work_sync sync;
 
-	/* Cancel work */
+	modem_pipe_callback_set(ppp->pipe, NULL, NULL);
+
+	k_work_cancel_sync(&ppp->send_submit_work.work, &sync);
 	k_work_cancel_sync(&ppp->send_work.work, &sync);
+	k_work_cancel_sync(&ppp->process_work.work, &sync);
 
-	modem_pipe_event_handler_set(ppp->pipe, NULL, NULL);
-
-	/* Clear references to pipe and network interface */
-	ppp->net_iface = NULL;
 	ppp->pipe = NULL;
 
-	/* Unreference network packet if exists */
 	if (ppp->pkt != NULL) {
 		net_pkt_unref(ppp->pkt);
 		ppp->pkt = NULL;
 	}
+
+	return 0;
+}
+
+int modem_ppp_init_internal(const struct device *dev)
+{
+	struct modem_ppp *ppp = (struct modem_ppp *)dev->data;
+
+	ring_buf_init(&ppp->transmit_rb, ppp->buf_size, ppp->transmit_buf);
+
+	ppp->send_submit_work.ppp = ppp;
+	k_work_init(&ppp->send_submit_work.work, modem_ppp_send_submit_handler);
+
+	ppp->send_work.ppp = ppp;
+	k_work_init(&ppp->send_work.work, modem_ppp_send_handler);
+
+	ppp->process_work.ppp = ppp;
+	k_work_init(&ppp->process_work.work, modem_ppp_process_handler);
 
 	return 0;
 }
