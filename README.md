@@ -27,7 +27,7 @@ The modem modules in the modem subsystem are loosely coupled using the modem_pip
 Using the modem subsystem, the Device Driver layer is only tasked with power management and providing a serial interface to the modem. Everything above the serial interface is handled by the application, using the modem subsystem. This interface could be IPC, UART, I2C, etc. Simply create a backend for the specific phy and the modem subsystem will be able to use it.
 
 ## How to run the sample
-1. Set up a clean Zephyr workspace
+1. Set up a clean Zephyr workspace, make sure you are using the latest upstream, otherwise NET L4 will never connect
 2. Clone this repo to the workspace
 3. Run the following command in your terminal **export ZEPHYR_EXTRA_MODULES="$PWD/modem_modules"**
 4. Add .overlay file to this folder modem_modules/samples/subsys/modem/cmux_ppp for your board
