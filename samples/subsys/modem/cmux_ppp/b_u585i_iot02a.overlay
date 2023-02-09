@@ -1,6 +1,6 @@
 / {
     aliases {
-        cellular-modem = &usart2;
+        modem-uart = &usart2;
     };
 
     zephyr,user {
@@ -17,23 +17,4 @@
     current-speed = <115200>;
     status = "okay";
     hw-flow-control;
-
-	cellular: cellular {
-		compatible = "quectel,bgxx";
-		status = "disabled";
-
-        /* doam */
-		mdm-status-gpios = <&gpioe 0 GPIO_ACTIVE_HIGH>;
-        mdm-power-gpios = <&gpioe 2 GPIO_ACTIVE_HIGH>; //line connected to pwrkey transisor base (there is open drain on evalboard)
-        /* TU700 */
-        /*
-        mdm-enable-gpios = <&gpioh 11 GPIO_ACTIVE_HIGH>;
-		mdm-power-gpios = <&gpiog 2 GPIO_ACTIVE_HIGH>;
-		mdm-status-gpios = <&gpioh 12 GPIO_ACTIVE_HIGH>;
-		mdm-pon-trig-gpios = <&gpiod 12 GPIO_ACTIVE_HIGH>;
-		mdm-dtr-gpios = <&gpiog 4 GPIO_ACTIVE_HIGH>;
-		mdm-sw-v1-gpios = <&gpioh 14 GPIO_ACTIVE_HIGH>;
-		mdm-sw-v2-gpios = <&gpioh 15 GPIO_ACTIVE_HIGH>;
-        */
-    };
 };

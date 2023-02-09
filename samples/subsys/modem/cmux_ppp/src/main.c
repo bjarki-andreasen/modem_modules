@@ -23,15 +23,14 @@
 /*************************************************************************************************/
 /*                                         Definitions                                           */
 /*************************************************************************************************/
-#define SAMPLE_APN "\"trackunit.m2m\""
-#define SAMPLE_USERNAME ""
-#define SAMPLE_PASSWORD ""
+#warning "Please update the following defines to match your modem"
+#define SAMPLE_APN ""
 #define SAMPLE_CMUX "AT+CMUX=0,0,5,127,10,3,30,10,2"
 
 /*************************************************************************************************/
 /*                                           Devices                                             */
 /*************************************************************************************************/
-const struct device *cellular_modem = DEVICE_DT_GET(DT_ALIAS(cellular_modem));
+const struct device *modem_uart = DEVICE_DT_GET(DT_ALIAS(modem_uart));
 
 /*************************************************************************************************/
 /*                                            Events                                             */
@@ -303,11 +302,13 @@ static bool event_wait_all(uint32_t events, bool reset)
 
 static void board_init(void)
 {
+#ifdef CONFIG_BOARD_B_U585I_IOT02A
 	const struct gpio_dt_spec en1_gpio = GPIO_DT_SPEC_GET(DT_PATH(zephyr_user), en1_gpios);
 	const struct gpio_dt_spec en2_gpio = GPIO_DT_SPEC_GET(DT_PATH(zephyr_user), en2_gpios);
 
 	gpio_pin_configure_dt(&en1_gpio, GPIO_OUTPUT_ACTIVE);
 	gpio_pin_configure_dt(&en2_gpio, GPIO_OUTPUT_ACTIVE);
+#endif
 }
 
 /*************************************************************************************************/
@@ -333,7 +334,7 @@ void main(void)
 	 * cellular modem using the UART.
 	 */
 	const struct modem_pipe_uart_config pipe_uart_config = {
-		.uart = cellular_modem,
+		.uart = modem_uart,
 		.rx_buf = pipe_uart_rx_buf,
 		.rx_buf_size = ARRAY_SIZE(pipe_uart_rx_buf),
 		.tx_buf = pipe_uart_tx_buf,
@@ -391,8 +392,8 @@ void main(void)
 	k_event_init(&sample_event);
 
 	/* Power on cellular modem
-	pm_device_action_run(cellular_modem, PM_DEVICE_ACTION_TURN_ON);
-	pm_device_action_run(cellular_modem, PM_DEVICE_ACTION_RESUME);
+	pm_device_action_run(modem_uart, PM_DEVICE_ACTION_TURN_ON);
+	pm_device_action_run(modem_uart, PM_DEVICE_ACTION_RESUME);
 	*/
 
 	/* Open bus pipe using modem pipe UART module */

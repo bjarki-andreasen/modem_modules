@@ -1030,12 +1030,14 @@ int modem_cmux_disconnect(struct modem_cmux *cmux)
 	/* Lazy await disconnect */
 	k_msleep(300);
 
-	/* Release bus pipe */
-	modem_pipe_callback_set(cmux->pipe, NULL, NULL);
-
 	/* Cancel work */
 	struct k_work_sync sync;
 	k_work_cancel_delayable_sync(&cmux->process_received.dwork, &sync);
+
+	/* Release bus pipe */
+	if (cmux->pipe != NULL) {
+		modem_pipe_callback_set(cmux->pipe, NULL, NULL);
+	}
 
 	k_mutex_unlock(&cmux->lock);
 
