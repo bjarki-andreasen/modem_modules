@@ -24,12 +24,16 @@ static int modem_pipe_mock_pipe_transmit(struct modem_pipe *pipe, const uint8_t 
 {
 	struct modem_pipe_mock *mock = (struct modem_pipe_mock *)pipe->data;
 
+	size = (mock->limit < size) ? mock->limit : size;
+
 	return ring_buf_put(&mock->tx_rb, buf, size);
 }
 
 static int modem_pipe_mock_pipe_receive(struct modem_pipe *pipe, uint8_t *buf, size_t size)
 {
 	struct modem_pipe_mock *mock = (struct modem_pipe_mock *)pipe->data;
+
+	size = (mock->limit < size) ? mock->limit : size;
 
 	return ring_buf_get(&mock->rx_rb, buf, size);
 }
@@ -63,6 +67,8 @@ int modem_pipe_mock_init(struct modem_pipe_mock *mock, const struct modem_pipe_m
 	mock->received_work_item.mock = mock;
 	k_work_init(&mock->received_work_item.work, modem_pipe_mock_received_handler);
 
+	mock->limit = UINT32_MAX;
+
 	return 0;
 }
 
@@ -95,8 +101,14 @@ int modem_pipe_mock_reset(struct modem_pipe_mock *mock)
 {
 	ring_buf_reset(&mock->rx_rb);
 	ring_buf_reset(&mock->tx_rb);
+	mock->limit = UINT32_MAX;
 
 	return 0;
+}
+
+void modem_pipe_mock_limit_size(struct modem_pipe_mock *mock, size_t size)
+{
+	mock->limit = size;
 }
 
 int modem_pipe_mock_get(struct modem_pipe_mock *mock, uint8_t *buf, size_t size)

@@ -31,6 +31,9 @@ struct modem_pipe_mock {
 
 	/* Work */
 	struct modem_pipe_mock_work received_work_item;
+
+	/* Max allowed read/write size */
+	size_t limit;
 };
 
 struct modem_pipe_mock_config {
@@ -47,6 +50,8 @@ int modem_pipe_mock_open(struct modem_pipe_mock *mock, struct modem_pipe *pipe);
 int modem_pipe_mock_close(struct modem_pipe *pipe);
 
 int modem_pipe_mock_reset(struct modem_pipe_mock *mock);
+
+void modem_pipe_mock_limit_size(struct modem_pipe_mock *mock, size_t size);
 
 int modem_pipe_mock_get(struct modem_pipe_mock *mock, uint8_t *buf, size_t size);
 

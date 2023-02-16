@@ -91,7 +91,7 @@ struct modem_cmux_frame {
 	bool cr;
 	bool pf;
 	uint8_t type;
-	const uint8_t *data;
+	uint8_t *data;
 	uint16_t data_len;
 };
 

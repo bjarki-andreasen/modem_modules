@@ -192,7 +192,7 @@ static bool modem_chat_script_send_request(struct modem_chat *chat)
 static bool modem_chat_script_send_delimiter(struct modem_chat *chat)
 {
 	uint8_t *script_chat_delimiter_start;
-	uint16_t script_chat_delimiter_remaining;
+	uint8_t script_chat_delimiter_remaining;
 	int ret;
 
 	/* Validate data to send */
@@ -213,7 +213,7 @@ static bool modem_chat_script_send_delimiter(struct modem_chat *chat)
 	}
 
 	/* Update script send position */
-	chat->script_send_delimiter_pos += (uint16_t)ret;
+	chat->script_send_delimiter_pos += (uint8_t)ret;
 
 	/* Check if data remains */
 	if (chat->script_send_delimiter_pos < chat->delimiter_size) {
@@ -350,7 +350,7 @@ static bool modem_chat_parse_is_separator(struct modem_chat *chat)
 
 static bool modem_chat_parse_end_del_start(struct modem_chat *chat)
 {
-	for (uint16_t i = 0; i < chat->delimiter_size; i++) {
+	for (uint8_t i = 0; i < chat->delimiter_size; i++) {
 		if (chat->receive_buf[chat->receive_buf_len - 1] == chat->delimiter[i]) {
 			return true;
 		}
@@ -570,10 +570,25 @@ static void modem_chat_process_byte(struct modem_chat *chat, uint8_t byte)
 	chat->parse_arg_len++;
 }
 
+static bool modem_chat_discard_byte(struct modem_chat *chat, uint8_t byte)
+{
+	for (uint8_t i = 0; i < chat->filter_size; i++) {
+		if (byte == chat->filter[i]) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 /* Process chunk of received bytes */
 static void modem_chat_process_bytes(struct modem_chat *chat)
 {
 	for (uint16_t i = 0; i < chat->work_buf_len; i++) {
+		if (modem_chat_discard_byte(chat, chat->work_buf[i])) {
+			continue;
+		}
+
 		modem_chat_process_byte(chat, chat->work_buf[i]);
 	}
 }
@@ -598,10 +613,7 @@ static void modem_chat_process_handler(struct k_work *item)
 	/* Process data */
 	modem_chat_process_bytes(chat);
 
-	/* Schedule receive handler if data remains */
-	if (chat->work_buf_len == sizeof(chat->work_buf)) {
-		k_work_schedule(&chat->process_work.dwork, K_NO_WAIT);
-	}
+	k_work_schedule(&chat->process_work.dwork, K_NO_WAIT);
 }
 
 static void modem_chat_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_event event,
@@ -625,7 +637,7 @@ int modem_chat_init(struct modem_chat *chat, const struct modem_chat_config *con
 	/* Validate config */
 	if ((config->receive_buf == NULL) || (config->receive_buf_size == 0) ||
 	    (config->argv == NULL) || (config->argv_size == 0) || (config->delimiter == NULL) ||
-	    (config->delimiter_size == 0) ||
+	    (config->delimiter_size == 0) || ((config->filter == NULL) && config->filter > 0) ||
 	    ((config->unsol_matches != NULL) && (config->unsol_matches_size == 0))) {
 		return -EINVAL;
 	}
@@ -642,6 +654,8 @@ int modem_chat_init(struct modem_chat *chat, const struct modem_chat_config *con
 	chat->argv_size = config->argv_size;
 	chat->delimiter = config->delimiter;
 	chat->delimiter_size = config->delimiter_size;
+	chat->filter = config->filter;
+	chat->filter_size = config->filter_size;
 	chat->matches[MODEM_CHAT_MATCHES_INDEX_UNSOL] = config->unsol_matches;
 	chat->matches_size[MODEM_CHAT_MATCHES_INDEX_UNSOL] = config->unsol_matches_size;
 	chat->process_timeout = config->process_timeout;
