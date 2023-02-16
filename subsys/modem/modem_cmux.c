@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(modem_cmux, 0);
+LOG_MODULE_REGISTER(modem_cmux);
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/crc.h>
