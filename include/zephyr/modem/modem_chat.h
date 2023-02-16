@@ -46,24 +46,24 @@ struct modem_chat_match {
 	const modem_chat_match_callback callback;
 };
 
-#define MODEM_CHAT_MATCH(_match, _separators, _callback)                         \
-	{                                                                        \
-		.match = (uint8_t *)(_match),                                    \
-		.match_size = (uint8_t)(sizeof(_match) - 1),                     \
-		.separators = (uint8_t *)(_separators),                          \
-		.separators_size = (uint8_t)(sizeof(_separators) - 1),           \
-		.wildcards = false,                                              \
-		.callback = _callback,                                           \
+#define MODEM_CHAT_MATCH(_match, _separators, _callback)                        \
+	{                                                                       \
+		.match = (uint8_t *)(_match),                                   \
+		.match_size = (uint8_t)(sizeof(_match) - 1),                    \
+		.separators = (uint8_t *)(_separators),                         \
+		.separators_size = (uint8_t)(sizeof(_separators) - 1),          \
+		.wildcards = false,                                             \
+		.callback = _callback,                                          \
 	}
 
-#define MODEM_CHAT_MATCH_WILDCARD(_match, _separators, _callback)                \
-	{                                                                        \
-		.match = (uint8_t *)(_match),                                    \
-		.match_size = (uint8_t)(sizeof(_match) - 1),                     \
-		.separators = (uint8_t *)(_separators),                          \
-		.separators_size = (uint8_t)(sizeof(_separators) - 1),           \
-		.wildcards = true,                                               \
-		.callback = _callback,                                           \
+#define MODEM_CHAT_MATCH_WILDCARD(_match, _separators, _callback)               \
+	{                                                                       \
+		.match = (uint8_t *)(_match),                                   \
+		.match_size = (uint8_t)(sizeof(_match) - 1),                    \
+		.separators = (uint8_t *)(_separators),                         \
+		.separators_size = (uint8_t)(sizeof(_separators) - 1),          \
+		.wildcards = true,                                              \
+		.callback = _callback,                                          \
 	}
 
 #define MODEM_CHAT_MATCH_DEFINE(_sym, _match, _separators, _callback)           \
@@ -150,11 +150,11 @@ struct modem_chat_script {
 	const uint32_t timeout;
 };
 
-#define MODEM_CHAT_SCRIPT_DEFINE(_sym, _script_chats, _abort_matches, _callback, _timeout)       \
+#define MODEM_CHAT_SCRIPT_DEFINE(_sym, _script_chats, _abort_matches, _callback, _timeout)      \
 	static struct modem_chat_script _sym = {                                                \
 		.name = #_sym,                                                                  \
-		.script_chats = _script_chats,                                                    \
-		.script_chats_size = ARRAY_SIZE(_script_chats),                                   \
+		.script_chats = _script_chats,                                                  \
+		.script_chats_size = ARRAY_SIZE(_script_chats),                                 \
 		.abort_matches = _abort_matches,                                                \
 		.abort_matches_size = ARRAY_SIZE(_abort_matches),                               \
 		.callback = _callback,                                                          \
@@ -233,6 +233,10 @@ struct modem_chat {
 	uint16_t delimiter_size;
 	uint16_t delimiter_match_len;
 
+	/* Array of bytes which are discarded out by parser */
+	uint8_t *filter;
+	uint16_t filter_size;
+
 	/* Parsed arguments */
 	uint8_t **argv;
 	uint16_t argv_size;
@@ -278,6 +282,8 @@ struct modem_chat {
  * @param receive_buf_size Size of receive buffer should be longest line + longest match
  * @param delimiter Delimiter
  * @param delimiter_size Size of delimiter
+ * @param filter Bytes which are discarded by parser
+ * @param filter_size Size of filter
  * @param argv Array of pointers used to point to parsed arguments
  * @param argv_size Elements in array of pointers
  * @param unsol_matches Array of unsolicited matches
@@ -289,7 +295,9 @@ struct modem_chat_config {
 	uint8_t *receive_buf;
 	uint16_t receive_buf_size;
 	uint8_t *delimiter;
-	uint16_t delimiter_size;
+	uint8_t delimiter_size;
+	uint8_t *filter;
+	uint8_t filter_size;
 	uint8_t **argv;
 	uint16_t argv_size;
 	const struct modem_chat_match *unsol_matches;

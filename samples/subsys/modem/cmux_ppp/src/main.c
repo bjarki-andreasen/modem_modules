@@ -24,7 +24,7 @@
 /*                                         Definitions                                           */
 /*************************************************************************************************/
 #warning "Please update the following defines to match your modem"
-#define SAMPLE_APN ""
+#define SAMPLE_APN "\"trackunit.m2m\""
 #define SAMPLE_CMUX "AT+CMUX=0,0,5,127,10,3,30,10,2"
 
 /*************************************************************************************************/
@@ -118,7 +118,8 @@ static void modem_cmux_callback_handler(struct modem_cmux *cmux, struct modem_cm
 /*************************************************************************************************/
 static struct modem_chat chat;
 static uint8_t chat_receive_buf[128];
-static uint8_t chat_delimiter[2] = {'\r', '\n'};
+static uint8_t chat_delimiter[] = {'\r'};
+static uint8_t chat_filter[1] = {'\n'};
 static uint8_t *chat_argv[32];
 
 /*************************************************************************************************/
@@ -126,10 +127,10 @@ static uint8_t *chat_argv[32];
 /*************************************************************************************************/
 static void ppp_iface_init(struct net_if *iface)
 {
-	net_if_flag_set(iface, NET_IF_NO_AUTO_START);
+
 }
 
-MODEM_PPP_DEFINE(ppp, ppp_iface_init, 41, 1500, 64);
+MODEM_PPP_DEFINE(ppp, ppp_iface_init, 41, 1500, 64, 8);
 
 /*************************************************************************************************/
 /*                                     Chat script matches                                       */
@@ -259,8 +260,8 @@ MODEM_CHAT_SCRIPT_DEFINE(connect_chat_script, connect_chat_script_cmds, abort_ma
 /*************************************************************************************************/
 static struct net_mgmt_event_callback mgmt_cb;
 
-static void net_mgmt_event_callback_handler(struct net_mgmt_event_callback *,
-					    uint32_t mgmt_event, struct net_if *)
+static void net_mgmt_event_callback_handler(struct net_mgmt_event_callback *cb,
+					    uint32_t mgmt_event, struct net_if *iface)
 {
 	if (mgmt_event == NET_EVENT_L4_CONNECTED) {
 		k_event_post(&sample_event, SAMPLE_EVENT_NET_L4_CONNECTED);
@@ -376,6 +377,8 @@ void main(void)
 		.receive_buf_size = ARRAY_SIZE(chat_receive_buf),
 		.delimiter = chat_delimiter,
 		.delimiter_size = ARRAY_SIZE(chat_delimiter),
+		.filter = chat_filter,
+		.filter_size = ARRAY_SIZE(chat_filter),
 		.argv = chat_argv,
 		.argv_size = ARRAY_SIZE(chat_argv),
 		.unsol_matches = NULL,

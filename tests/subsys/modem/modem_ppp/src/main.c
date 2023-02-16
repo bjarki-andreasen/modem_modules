@@ -19,13 +19,16 @@
 #include <modem_pipe_mock.h>
 
 #define TEST_MODEM_PPP_BUF_SIZE (16)
+#define TEST_MODEM_PPP_TX_PKT_BUF_SIZE (5)
+#define TEST_MODEM_PPP_MOCK_PIPE_RX_BUF_SIZE (4096)
+#define TEST_MODEM_PPP_MOCK_PIPE_TX_BUF_SIZE (4096)
 
 /*************************************************************************************************/
 /*                                          Mock pipe                                            */
 /*************************************************************************************************/
 static struct modem_pipe_mock mock;
-static uint8_t mock_rx_buf[128];
-static uint8_t mock_tx_buf[128];
+static uint8_t mock_rx_buf[TEST_MODEM_PPP_MOCK_PIPE_RX_BUF_SIZE];
+static uint8_t mock_tx_buf[TEST_MODEM_PPP_MOCK_PIPE_TX_BUF_SIZE];
 
 static struct modem_pipe mock_pipe;
 
@@ -120,12 +123,15 @@ static struct net_if test_iface = {
  */
 static uint8_t ppp_receive_buf[TEST_MODEM_PPP_BUF_SIZE];
 static uint8_t ppp_transmit_buf[TEST_MODEM_PPP_BUF_SIZE];
+static struct net_pkt *ppp_tx_net_pkt_buf[TEST_MODEM_PPP_TX_PKT_BUF_SIZE];
 
 static struct modem_ppp ppp = {
 	.iface = &test_iface,
 	.receive_buf = ppp_receive_buf,
 	.transmit_buf = ppp_transmit_buf,
 	.buf_size = TEST_MODEM_PPP_BUF_SIZE,
+	.tx_pkt_buf = ppp_tx_net_pkt_buf,
+	.tx_pkt_buf_size = TEST_MODEM_PPP_TX_PKT_BUF_SIZE,
 };
 
 /*************************************************************************************************/
@@ -187,6 +193,9 @@ static void test_modem_ppp_before(void *f)
 
 	/* Reset mock pipe */
 	modem_pipe_mock_reset(&mock);
+
+	/* Limit read/write size */
+	modem_pipe_mock_limit_size(&mock, 8);
 }
 
 ZTEST(modem_ppp, ppp_frame_receive)
@@ -334,7 +343,7 @@ ZTEST(modem_ppp, ip_frame_send)
 	test_net_send(pkt);
 
 	/* Give modem ppp time to wrap and send frame */
-	k_msleep(1000);
+	k_msleep(100);
 
 	/* Get any sent data */
 	ret = modem_pipe_mock_get(&mock, buffer, sizeof(buffer));
@@ -343,6 +352,41 @@ ZTEST(modem_ppp, ip_frame_send)
 
 	zassert_true(memcmp(buffer, ip_frame_wrapped, ret) == 0,
 		     "Wrapped frame content is incorrect");
+}
+
+#define MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N (5)
+
+ZTEST(modem_ppp, ip_frame_send_multiple)
+{
+	struct net_pkt *pkts[MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N];
+	int ret;
+
+	/* Allocate net pkts */
+	for (uint8_t i = 0; i < MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N; i++) {
+		pkts[i] = net_pkt_alloc_with_buffer(&test_iface, 256, AF_UNSPEC,0, K_NO_WAIT);
+
+		zassert_true(pkts[i] != NULL, "Failed to allocate network packet");
+
+		net_pkt_cursor_init(pkts[i]);
+
+		ret = net_pkt_write(pkts[i], ip_frame_unwrapped, sizeof(ip_frame_unwrapped));
+
+		zassert_true(ret == 0, "Failed to write data to allocated network packet");
+
+		net_pkt_set_family(pkts[i], AF_INET);
+	}
+
+	/* Send net pkts */
+	for (uint8_t i = 0; i < MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N; i++) {
+		test_net_send(pkts[i]);
+	}
+
+	k_msleep(100);
+
+	ret = modem_pipe_mock_get(&mock, buffer, TEST_MODEM_PPP_MOCK_PIPE_RX_BUF_SIZE);
+
+	zassert_true(ret == (sizeof(ip_frame_wrapped) * MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N),
+		     "Incorrect data amount received");
 }
 
 ZTEST_SUITE(modem_ppp, NULL, test_modem_ppp_setup, test_modem_ppp_before, NULL, NULL);

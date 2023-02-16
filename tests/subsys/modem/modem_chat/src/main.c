@@ -19,7 +19,7 @@
 /*                                         Instances                                             */
 /*************************************************************************************************/
 static struct modem_chat cmd;
-static uint8_t cmd_delimiter[2] = {'\r', '\n'};
+static uint8_t cmd_delimiter[] = {'\r', '\n'};
 static uint8_t cmd_receive_buf[128];
 static uint8_t *cmd_argv[32];
 static uint32_t cmd_user_data = 0x145212;
@@ -203,6 +203,8 @@ static void *test_modem_chat_setup(void)
 		.receive_buf_size = ARRAY_SIZE(cmd_receive_buf),
 		.delimiter = cmd_delimiter,
 		.delimiter_size = ARRAY_SIZE(cmd_delimiter),
+		.filter = NULL,
+		.filter_size = 0,
 		.argv = cmd_argv,
 		.argv_size = ARRAY_SIZE(cmd_argv),
 		.unsol_matches = unsol_matches,
@@ -236,6 +238,9 @@ static void test_modem_chat_before(void *f)
 
 	/* Reset mock pipe */
 	modem_pipe_mock_reset(&mock);
+
+	/* Limit read/write size */
+	modem_pipe_mock_limit_size(&mock, 8);
 }
 
 static void test_modem_chat_after(void *f)
@@ -269,7 +274,7 @@ ZTEST(modem_chat, script_no_error)
 
 	modem_pipe_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
 
-	zassert_true(memcmp(buffer, "AT\r\n", sizeof("AT\r\n") - 1) == 0,
+	zassert_true(memcmp(buffer, "AT\r", sizeof("AT\r") - 1) == 0,
 		     "Request not sent as expected");
 
 	modem_pipe_mock_put(&mock, at_response, sizeof(at_response) - 1);

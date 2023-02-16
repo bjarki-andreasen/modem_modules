@@ -23,33 +23,6 @@ LOG_MODULE_REGISTER(modem_cmux, 0);
 #define MODEM_CMUX_CR              0x02 /* Command / Response */
 #define MODEM_CMUX_PF              0x10 /* Poll / Final       */
 
-/* Frame types sent to and from bus */
-#define MODEM_CMUX_FRAME_TYPE_RR   0x01 /* Receive Ready                            */
-#define MODEM_CMUX_FRAME_TYPE_UI   0x03 /* Unnumbered Information                   */
-#define MODEM_CMUX_FRAME_TYPE_RNR  0x05 /* Receive Not Ready                        */
-#define MODEM_CMUX_FRAME_TYPE_REJ  0x09 /* Reject                                   */
-#define MODEM_CMUX_FRAME_TYPE_DM   0x0F /* Disconnected Mode                        */
-#define MODEM_CMUX_FRAME_TYPE_SABM 0x2F /* Set Asynchronous Balanced Mode           */
-#define MODEM_CMUX_FRAME_TYPE_DISC 0x43 /* Disconnect                               */
-#define MODEM_CMUX_FRAME_TYPE_UA   0x63 /* Unnumbered Acknowledgement               */
-#define MODEM_CMUX_FRAME_TYPE_UIH  0xEF /* Unnumbered Information with Header check */
-
-/* Commands sent in UIH frames on control channel */
-#define MODEM_CMUX_CMD_NSC         0x08 /* Non Supported Command Response           */
-#define MODEM_CMUX_CMD_TEST        0x10 /* Test Command                             */
-#define MODEM_CMUX_CMD_PSC         0x20 /* Power Saving Control                     */
-#define MODEM_CMUX_CMD_RLS         0x28 /* Remote Line Status Command               */
-#define MODEM_CMUX_CMD_FCOFF       0x30 /* Flow Control Off Command                 */
-#define MODEM_CMUX_CMD_PN          0x40 /* DLC parameter negotiation                */
-#define MODEM_CMUX_CMD_RPN         0x48 /* Remote Port Negotiation Command          */
-#define MODEM_CMUX_CMD_FCON        0x50 /* Flow Control On Command                  */
-#define MODEM_CMUX_CMD_CLD         0x60 /* Multiplexer close down                   */
-#define MODEM_CMUX_CMD_SNC         0x68 /* Service Negotiation Command              */
-#define MODEM_CMUX_CMD_MSC         0x70 /* Modem Status Command                     */
-
-/*************************************************************************************************
- * Definitions
- *************************************************************************************************/
 #define MODEM_CMUX_DLCI_ADDRESS_MIN                 (1U)
 #define MODEM_CMUX_DLCI_ADDRESS_MAX                 (32767U)
 #define MODEM_CMUX_FRAME_SIZE_MIN                   (6U)
@@ -65,9 +38,32 @@ LOG_MODULE_REGISTER(modem_cmux, 0);
 
 #define MODEM_CMUX_EVENT_BUS_PIPE_RECEIVE_READY_BIT (0)
 
-/*************************************************************************************************
- * Declarations
- *************************************************************************************************/
+enum modem_cmux_frame_types {
+        MODEM_CMUX_FRAME_TYPE_RR = 0x01,
+        MODEM_CMUX_FRAME_TYPE_UI = 0x03,
+        MODEM_CMUX_FRAME_TYPE_RNR = 0x05,
+        MODEM_CMUX_FRAME_TYPE_REJ = 0x09,
+        MODEM_CMUX_FRAME_TYPE_DM = 0x0F,
+        MODEM_CMUX_FRAME_TYPE_SABM = 0x2F,
+        MODEM_CMUX_FRAME_TYPE_DISC = 0x43,
+        MODEM_CMUX_FRAME_TYPE_UA = 0x63,
+        MODEM_CMUX_FRAME_TYPE_UIH = 0xEF,
+};
+
+enum modem_cmux_command_types {
+        MODEM_CMUX_COMMAND_NSC = 0x04,
+        MODEM_CMUX_COMMAND_TEST = 0x08,
+        MODEM_CMUX_COMMAND_PSC = 0x10,
+        MODEM_CMUX_COMMAND_RLS = 0x14,
+        MODEM_CMUX_COMMAND_FCOFF = 0x18,
+        MODEM_CMUX_COMMAND_PN = 0x20,
+        MODEM_CMUX_COMMAND_RPN = 0x24,
+        MODEM_CMUX_COMMAND_FCON = 0x28,
+        MODEM_CMUX_COMMAND_CLD = 0x30,
+        MODEM_CMUX_COMMAND_SNC = 0x34,
+        MODEM_CMUX_COMMAND_MSC = 0x38,
+};
+
 struct modem_cmux_frame_encoded {
 	uint8_t header[MODEM_CMUX_FRAME_HEADER_SIZE_MAX];
 	uint8_t header_len;
@@ -77,9 +73,48 @@ struct modem_cmux_frame_encoded {
 	uint8_t tail_len;
 };
 
-/*************************************************************************************************
- * Logging helpers
- *************************************************************************************************/
+struct modem_cmux_command_type {
+	uint8_t ea : 1;
+	uint8_t cr : 1;
+	uint8_t value : 6;
+};
+
+struct modem_cmux_command_length {
+	uint8_t ea : 1;
+	uint8_t value : 7;
+};
+
+struct modem_cmux_command {
+	struct modem_cmux_command_type type;
+	struct modem_cmux_command_length length;
+	uint8_t value[];
+};
+
+static int modem_cmux_to_command(struct modem_cmux_command **command,
+				 const uint8_t *data, uint16_t data_len)
+{
+	if ((data == NULL) || (data_len < 2)) {
+		return -EINVAL;
+	}
+
+	(*command) = (struct modem_cmux_command *)data;
+
+	if (((*command)->length.ea == 0) || ((*command)->type.ea == 0)) {
+		return -EINVAL;
+	}
+
+	if ((*command)->length.value != (data_len - 2)) {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static struct modem_cmux_command *modem_cmux_command_wrap(uint8_t *data)
+{
+	return (struct modem_cmux_command *)data;
+}
+
 static void modem_cmux_log_unknown_frame(struct modem_cmux *cmux)
 {
 	char data[24];
@@ -96,9 +131,6 @@ static void modem_cmux_log_unknown_frame(struct modem_cmux *cmux)
 	LOG_DBG("ch:%u, type:%u, data:%s", cmux->frame.dlci_address, cmux->frame.type, data);
 }
 
-/************************************************************************************************
- * Static non-threadsafe helpers
- *************************************************************************************************/
 static void modem_cmux_dlci_pipe_raise_event(struct modem_cmux_dlci *dlci,
 					     enum modem_pipe_event event)
 {
@@ -326,9 +358,6 @@ static int modem_cmux_bus_write_frame(struct modem_cmux *cmux, const struct mode
 	return 0;
 }
 
-/*************************************************************************************************
- * Modem CMUX processing
- *************************************************************************************************/
 static void modem_cmux_process_on_frame_received_ua_control(struct modem_cmux *cmux)
 {
 	/* Update cmux state */
@@ -385,26 +414,38 @@ static void modem_cmux_process_on_frame_received_ua(struct modem_cmux *cmux)
 
 static void modem_cmux_process_on_frame_received_uih_control(struct modem_cmux *cmux)
 {
-	/* Modem CMUX disconnected */
-	if (cmux->frame.data_len == 2) {
-		if ((cmux->frame.data[0] == ((((uint8_t)MODEM_CMUX_CMD_CLD) << 1) | 0x01)) &&
-		    (cmux->frame.data[1] == 0x01) && (cmux->frame.cr == true) &&
-		    (cmux->frame.pf == false) && (cmux->state == MODEM_CMUX_STATE_DISCONNECTING)) {
-			/* Update CMUX state */
-			cmux->state = MODEM_CMUX_STATE_DISCONNECTED;
+	struct modem_cmux_command *command;
 
-			/* Notify CMUX state changed */
-			struct modem_cmux_event cmux_event = {
-				.dlci_address = 0, .type = MODEM_CMUX_EVENT_DISCONNECTED};
+	if (modem_cmux_to_command(&command, cmux->frame.data, cmux->frame.data_len) < 0) {
+		LOG_WRN("Invalid command");
+		return;
+	}
 
-			modem_cmux_raise_event(cmux, cmux_event);
+	if ((command->type.value == MODEM_CMUX_COMMAND_CLD) &&
+	    (command->type.cr == 1) &&
+	    (cmux->state == MODEM_CMUX_STATE_DISCONNECTING)) {
+		/* Update CMUX state */
+		cmux->state = MODEM_CMUX_STATE_DISCONNECTED;
 
-			/* Release bus pipe */
-			modem_pipe_callback_set(cmux->pipe, NULL, NULL);
-			cmux->pipe = NULL;
+		/* Notify CMUX state changed */
+		struct modem_cmux_event cmux_event = {
+			.dlci_address = 0, .type = MODEM_CMUX_EVENT_DISCONNECTED};
 
-			return;
-		}
+		modem_cmux_raise_event(cmux, cmux_event);
+
+		/* Release bus pipe */
+		modem_pipe_callback_set(cmux->pipe, NULL, NULL);
+		cmux->pipe = NULL;
+
+		return;
+	}
+
+	if ((command->type.value == MODEM_CMUX_COMMAND_MSC) &&
+	    (command->type.cr == 1) &&
+	    (command->type.ea == 1)) {
+		command->type.cr = 0;
+		modem_cmux_bus_write_frame(cmux, &cmux->frame);
+		return;
 	}
 
 	/* Notify unknown frame */
@@ -699,15 +740,9 @@ static void modem_cmux_process_received(struct k_work *item)
 	/* Process data */
 	modem_cmux_process_received_bytes(cmux);
 
-	/* Schedule receive handler if data remains */
-	if (cmux->work_buf_len == sizeof(cmux->work_buf)) {
-		k_work_schedule(&cmux->process_received.dwork, K_NO_WAIT);
-	}
+	k_work_schedule(&cmux->process_received.dwork, K_NO_WAIT);
 }
 
-/*************************************************************************************************
- * Thread-safe DLCI channel pipe API
- *************************************************************************************************/
 static int modem_cmux_dlci_pipe_callback_set(struct modem_pipe *pipe,
 						  modem_pipe_callback handler,
 						  void *user_data)
@@ -777,9 +812,6 @@ struct modem_pipe_driver_api modem_cmux_dlci_pipe_api = {
 	.receive = modem_cmux_dlci_pipe_receive,
 };
 
-/*************************************************************************************************
- * DLCI channel initialization
- *************************************************************************************************/
 static void modem_cmux_dlci_init(struct modem_cmux *cmux, struct modem_cmux_dlci *dlci,
 				 uint16_t dlci_address, struct modem_pipe *pipe,
 				 uint8_t *receive_buf, uint16_t receive_buf_size)
@@ -796,9 +828,6 @@ static void modem_cmux_dlci_init(struct modem_cmux *cmux, struct modem_cmux_dlci
 	dlci->state = MODEM_CMUX_DLCI_STATE_CLOSED;
 }
 
-/*************************************************************************************************
- * Public threadsafe functions
- *************************************************************************************************/
 int modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *config)
 {
 	/* Validate arguments */
@@ -995,15 +1024,23 @@ int modem_cmux_dlci_close(struct modem_pipe *pipe)
 int modem_cmux_disconnect(struct modem_cmux *cmux)
 {
 	int ret;
-	uint8_t cmd[] = {(((uint8_t)MODEM_CMUX_CMD_CLD) << 1) | 0x03, 0x01};
+	uint8_t data[2];
+	struct modem_cmux_command *command;
+
+	command = modem_cmux_command_wrap(data);
+	command->type.ea = 1;
+	command->type.cr = 1;
+	command->type.value = MODEM_CMUX_COMMAND_CLD;
+	command->length.ea = 1;
+	command->length.value = 0;
 
 	struct modem_cmux_frame frame = {
 		.dlci_address = 0,
 		.cr = true,
 		.pf = false,
 		.type = MODEM_CMUX_FRAME_TYPE_UIH,
-		.data = cmd,
-		.data_len = sizeof(cmd),
+		.data = data,
+		.data_len = sizeof(data),
 	};
 
 	k_mutex_lock(&cmux->lock, K_FOREVER);

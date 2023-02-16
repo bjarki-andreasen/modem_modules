@@ -61,6 +61,14 @@ static uint8_t cmux_frame_dlci2_open_ack[] = {
 	0xF9, 0x0B, 0x73, 0x01, 0x92, 0xF9
 };
 
+static uint8_t cmux_frame_control_msc_cmd[] = {
+	0xF9, 0x01, 0xFF, 0x09, 0xE3, 0x05, 0x0B, 0x09, 0x8F, 0xF9
+};
+
+static uint8_t cmux_frame_control_msc_ack[] = {
+	0xF9, 0x01, 0xFF, 0x09, 0xE1, 0x05, 0x0B, 0x09, 0x8F, 0xF9
+};
+
 /*************************************************************************************************/
 /*                                     DLCI2 AT CMUX frames                                      */
 /*************************************************************************************************/
@@ -283,6 +291,9 @@ static void test_modem_cmux_before(void *f)
 
 	/* Reset mock pipes */
 	modem_pipe_mock_reset(&bus_mock);
+
+	/* Limit read/write size */
+	modem_pipe_mock_limit_size(&bus_mock, 32);
 }
 
 ZTEST(modem_cmux, modem_cmux_receive_dlci2_at)
@@ -437,6 +448,25 @@ ZTEST(modem_cmux, modem_cmux_resync)
 		     cmux_frame_data_dlci1_at_newline,
 		     sizeof(cmux_frame_data_dlci1_at_newline)) == 0,
 		     "Incorrect data received");
+}
+
+ZTEST(modem_cmux, modem_cmux_msc_cmd_ack)
+{
+	int ret;
+
+	ret = modem_pipe_mock_put(&bus_mock, cmux_frame_control_msc_cmd,
+				  sizeof(cmux_frame_control_msc_cmd));
+
+	k_msleep(100);
+
+	ret = modem_pipe_mock_get(&bus_mock, buffer1, sizeof(buffer1));
+
+	zassert_true(ret == sizeof(cmux_frame_control_msc_ack),
+		     "Incorrect number of bytes received");
+
+	zassert_true(memcmp(buffer1, cmux_frame_control_msc_ack,
+		     sizeof(cmux_frame_control_msc_ack)) == 0,
+		     "Incorrect MSC ACK received");
 }
 
 ZTEST_SUITE(modem_cmux, NULL, test_modem_cmux_setup, test_modem_cmux_before, NULL, NULL);

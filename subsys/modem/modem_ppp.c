@@ -8,6 +8,52 @@ LOG_MODULE_REGISTER(modem_ppp);
 
 #define MODEM_PPP_FRAME_TAIL_SIZE (2)
 
+static bool modem_ppp_tx_net_pkt_buf_put(struct modem_ppp *ppp, struct net_pkt *pkt)
+{
+	k_mutex_lock(&ppp->tx_pkt_buf_lock, K_FOREVER);
+
+	uint16_t next = ppp->tx_pkt_buf_tail;
+
+	do {
+		if (ppp->tx_pkt_buf[next] == NULL) {
+			ppp->tx_pkt_buf[next] = pkt;
+
+			k_mutex_unlock(&ppp->tx_pkt_buf_lock);
+
+			return true;
+		}
+
+		next = ((next + 1) == ppp->tx_pkt_buf_size) ? 0 : (next + 1);
+
+	} while (next != ppp->tx_pkt_buf_tail);
+
+	k_mutex_unlock(&ppp->tx_pkt_buf_lock);
+
+	return false;
+}
+
+static bool modem_ppp_tx_net_pkt_buf_get(struct modem_ppp *ppp, struct net_pkt **pkt)
+{
+    k_mutex_lock(&ppp->tx_pkt_buf_lock, K_FOREVER);
+
+    (*pkt) = ppp->tx_pkt_buf[ppp->tx_pkt_buf_tail];
+
+    if (*pkt == NULL) {
+        k_mutex_unlock(&ppp->tx_pkt_buf_lock);
+        return false;
+    }
+
+    ppp->tx_pkt_buf[ppp->tx_pkt_buf_tail] = NULL;
+
+    ppp->tx_pkt_buf_tail = (ppp->tx_pkt_buf_tail + 1 == ppp->tx_pkt_buf_size
+                            ? 0
+                            : ppp->tx_pkt_buf_tail + 1);
+
+    k_mutex_unlock(&ppp->tx_pkt_buf_lock);
+
+    return true;
+}
+
 static uint16_t modem_ppp_fcs_init(uint8_t byte)
 {
 	return crc16_ccitt(0xFFFF, &byte, 1);
@@ -340,25 +386,6 @@ static void modem_ppp_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_eve
 	k_work_submit(&ppp->process_work.work);
 }
 
-static void modem_ppp_send_submit_handler(struct k_work *item)
-{
-	struct modem_ppp_send_work_item *ppp_work_item = (struct modem_ppp_send_work_item *)item;
-	struct modem_ppp *ppp = ppp_work_item->ppp;
-
-	/* Validate memory available */
-	if (ppp->tx_pkt != NULL) {
-		LOG_WRN("Dropped net pkt");
-
-		return;
-	}
-
-	/* Submit network packet */
-	ppp->tx_pkt = ppp_work_item->pkt;
-
-	/* Submit send work */
-	k_work_submit(&ppp->send_work.work);
-}
-
 static void modem_ppp_send_handler(struct k_work *item)
 {
 	struct modem_ppp_work_item *ppp_work_item = (struct modem_ppp_work_item *)item;
@@ -367,6 +394,10 @@ static void modem_ppp_send_handler(struct k_work *item)
 	uint8_t *reserved;
 	uint32_t reserved_size;
 	int ret;
+
+	if (ppp->tx_pkt == NULL) {
+		modem_ppp_tx_net_pkt_buf_get(ppp, &ppp->tx_pkt);
+	}
 
 	if (ppp->tx_pkt != NULL) {
 		/* Initialize wrap */
@@ -383,7 +414,7 @@ static void modem_ppp_send_handler(struct k_work *item)
 			if (ppp->transmit_state == MODEM_PPP_TRANSMIT_STATE_IDLE) {
 				net_pkt_unref(ppp->tx_pkt);
 
-				ppp->tx_pkt = NULL;
+				modem_ppp_tx_net_pkt_buf_get(ppp, &ppp->tx_pkt);
 
 				break;
 			}
@@ -424,10 +455,7 @@ static void modem_ppp_process_handler(struct k_work *item)
 		modem_ppp_process_received_byte(ppp, ppp->receive_buf[i]);
 	}
 
-	/* Resubmit receive handler if data remains */
-	if (ret == ppp->buf_size) {
-		k_work_submit(&ppp->process_work.work);
-	}
+	k_work_submit(&ppp->process_work.work);
 }
 
 static void modem_ppp_ppp_api_init(struct net_if *iface)
@@ -437,6 +465,8 @@ static void modem_ppp_ppp_api_init(struct net_if *iface)
 	struct modem_ppp *ppp = (struct modem_ppp *)dev->data;
 
 	net_ppp_init(iface);
+
+	net_if_flag_set(iface, NET_IF_NO_AUTO_START);
 
 	if (ppp->init_iface != NULL) {
 		ppp->init_iface(iface);
@@ -471,19 +501,20 @@ static int modem_ppp_ppp_api_send(const struct device *dev, struct net_pkt *pkt)
 		return -ENODATA;
 	}
 
-	/* Validate send submit work idle */
-	if (k_work_is_pending(&ppp->send_submit_work.work) == true) {
-		return -EBUSY;
-	}
-
-	/* Initialize send submit work */
-	ppp->send_submit_work.pkt = pkt;
-
 	/* Reference pkt */
 	net_pkt_ref(pkt);
 
-	/* Submit send submit work */
-	k_work_submit(&ppp->send_submit_work.work);
+	/* Validate send submit work idle */
+	if (modem_ppp_tx_net_pkt_buf_put(ppp, pkt) == false) {
+		LOG_WRN("tx pkt buf overrun");
+
+		net_pkt_unref(pkt);
+
+		return -ENOMEM;
+	}
+
+	/* Submit send work */
+	k_work_submit(&ppp->send_work.work);
 
 	return 0;
 }
@@ -520,10 +551,10 @@ struct net_if *modem_ppp_get_iface(struct modem_ppp *ppp)
 int modem_ppp_release(struct modem_ppp *ppp)
 {
 	struct k_work_sync sync;
+	struct net_pkt *pkt;
 
 	modem_pipe_callback_set(ppp->pipe, NULL, NULL);
 
-	k_work_cancel_sync(&ppp->send_submit_work.work, &sync);
 	k_work_cancel_sync(&ppp->send_work.work, &sync);
 	k_work_cancel_sync(&ppp->process_work.work, &sync);
 
@@ -532,6 +563,10 @@ int modem_ppp_release(struct modem_ppp *ppp)
 	if (ppp->pkt != NULL) {
 		net_pkt_unref(ppp->pkt);
 		ppp->pkt = NULL;
+	}
+
+	while (modem_ppp_tx_net_pkt_buf_get(ppp, &pkt) == true) {
+		net_pkt_unref(pkt);
 	}
 
 	return 0;
@@ -543,8 +578,7 @@ int modem_ppp_init_internal(const struct device *dev)
 
 	ring_buf_init(&ppp->transmit_rb, ppp->buf_size, ppp->transmit_buf);
 
-	ppp->send_submit_work.ppp = ppp;
-	k_work_init(&ppp->send_submit_work.work, modem_ppp_send_submit_handler);
+	k_mutex_init(&ppp->tx_pkt_buf_lock);
 
 	ppp->send_work.ppp = ppp;
 	k_work_init(&ppp->send_work.work, modem_ppp_send_handler);
