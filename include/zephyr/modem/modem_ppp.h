@@ -147,25 +147,24 @@ int modem_ppp_init_internal(const struct device *dev);
  * @param _buf_size Size of partial PPP frame transmit and receive buffers
  * @param _tx_pkt_buf_size Size of transmit network packet buffer
  */
-#define MODEM_PPP_DEFINE(_name, _init_iface, _prio, _mtu, _buf_size, _tx_pkt_buf_size)  \
-	extern const struct ppp_api modem_ppp_ppp_api;                          	\
-											\
-	static uint8_t _name##_receive_buf[_buf_size];                          	\
-	static uint8_t _name##_transmit_buf[_buf_size];                         	\
-	static struct net_pkt *_name##_tx_net_pkt_buf[_tx_pkt_buf_size];                \
-											\
-	static struct modem_ppp _name = {                                       	\
-		.init_iface = _init_iface,                                      	\
-		.receive_buf = _name##_receive_buf,                             	\
-		.transmit_buf = _name##_transmit_buf,                           	\
-		.buf_size = _buf_size,                                          	\
-		.tx_pkt_buf = _name##_tx_net_pkt_buf,                                   \
-		.tx_pkt_buf_size = _tx_pkt_buf_size,                                    \
-	};                                                                      	\
-											\
-	NET_DEVICE_INIT(ppp_net_dev_##_name, "modem_ppp_"#_name,                	\
-			modem_ppp_init_internal, &_name##_config, &_name,       	\
-			_init_iface, _prio, &modem_ppp_ppp_api, PPP_L2,         	\
+#define MODEM_PPP_DEFINE(_name, _init_iface, _prio, _mtu, _buf_size, _tx_pkt_buf_size)             \
+	extern const struct ppp_api modem_ppp_ppp_api;                                             \
+                                                                                                   \
+	static uint8_t _name##_receive_buf[_buf_size];                                             \
+	static uint8_t _name##_transmit_buf[_buf_size];                                            \
+	static struct net_pkt *_name##_tx_net_pkt_buf[_tx_pkt_buf_size];                           \
+                                                                                                   \
+	static struct modem_ppp _name = {                                                          \
+		.init_iface = _init_iface,                                                         \
+		.receive_buf = _name##_receive_buf,                                                \
+		.transmit_buf = _name##_transmit_buf,                                              \
+		.buf_size = _buf_size,                                                             \
+		.tx_pkt_buf = _name##_tx_net_pkt_buf,                                              \
+		.tx_pkt_buf_size = _tx_pkt_buf_size,                                               \
+	};                                                                                         \
+                                                                                                   \
+	NET_DEVICE_INIT(ppp_net_dev_##_name, "modem_ppp_" #_name, modem_ppp_init_internal,         \
+			&_name##_config, &_name, _init_iface, _prio, &modem_ppp_ppp_api, PPP_L2,   \
 			NET_L2_GET_CTX_TYPE(PPP_L2), _mtu)
 
 #endif /* ZEPHYR_MODEM_MODEM_PPP */

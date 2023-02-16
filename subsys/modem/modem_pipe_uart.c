@@ -22,7 +22,7 @@ static void modem_pipe_uart_invoke_receive_ready_event(struct modem_pipe_uart *c
 	}
 
 	context->pipe_callback(context->pipe, MODEM_PIPE_EVENT_RECEIVE_READY,
-				    context->pipe_callback_user_data);
+			       context->pipe_callback_user_data);
 }
 
 static void modem_pipe_uart_irq_handler_rx_ready(struct modem_pipe_uart *context)
@@ -114,9 +114,8 @@ static void modem_pipe_uart_flush(struct modem_pipe_uart *context)
 	}
 }
 
-static int modem_pipe_uart_pipe_callback_set(struct modem_pipe *pipe,
-						  modem_pipe_callback handler,
-						  void *user_data)
+static int modem_pipe_uart_pipe_callback_set(struct modem_pipe *pipe, modem_pipe_callback handler,
+					     void *user_data)
 {
 	struct modem_pipe_uart *context = (struct modem_pipe_uart *)pipe->data;
 

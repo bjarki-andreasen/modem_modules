@@ -24,7 +24,7 @@
 /*                                         Definitions                                           */
 /*************************************************************************************************/
 #warning "Please update the following defines to match your modem"
-#define SAMPLE_APN "\"trackunit.m2m\""
+#define SAMPLE_APN  "\"trackunit.m2m\""
 #define SAMPLE_CMUX "AT+CMUX=0,0,5,127,10,3,30,10,2"
 
 /*************************************************************************************************/
@@ -35,17 +35,17 @@ const struct device *modem_uart = DEVICE_DT_GET(DT_ALIAS(modem_uart));
 /*************************************************************************************************/
 /*                                            Events                                             */
 /*************************************************************************************************/
-#define SAMPLE_EVENT_SCRIPT_SUCCESS             BIT(0)
-#define SAMPLE_EVENT_SCRIPT_ABORT               BIT(1)
-#define SAMPLE_EVENT_SCRIPT_TIMEOUT             BIT(2)
-#define SAMPLE_EVENT_CMUX_CONNECTED             BIT(3)
-#define SAMPLE_EVENT_CMUX_DLCI1_OPENED          BIT(4)
-#define SAMPLE_EVENT_CMUX_DLCI1_CLOSED          BIT(5)
-#define SAMPLE_EVENT_CMUX_DLCI2_OPENED          BIT(6)
-#define SAMPLE_EVENT_CMUX_DLCI2_CLOSED          BIT(7)
-#define SAMPLE_EVENT_CMUX_DISCONNECTED          BIT(8)
-#define SAMPLE_EVENT_NET_L4_CONNECTED           BIT(9)
-#define SAMPLE_EVENT_NET_L4_DISCONNECTED        BIT(10)
+#define SAMPLE_EVENT_SCRIPT_SUCCESS	 BIT(0)
+#define SAMPLE_EVENT_SCRIPT_ABORT	 BIT(1)
+#define SAMPLE_EVENT_SCRIPT_TIMEOUT	 BIT(2)
+#define SAMPLE_EVENT_CMUX_CONNECTED	 BIT(3)
+#define SAMPLE_EVENT_CMUX_DLCI1_OPENED	 BIT(4)
+#define SAMPLE_EVENT_CMUX_DLCI1_CLOSED	 BIT(5)
+#define SAMPLE_EVENT_CMUX_DLCI2_OPENED	 BIT(6)
+#define SAMPLE_EVENT_CMUX_DLCI2_CLOSED	 BIT(7)
+#define SAMPLE_EVENT_CMUX_DISCONNECTED	 BIT(8)
+#define SAMPLE_EVENT_NET_L4_CONNECTED	 BIT(9)
+#define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
 
 static struct k_event sample_event;
 
@@ -76,8 +76,7 @@ static uint8_t dlci2_receive_buf[128];
 static void modem_cmux_callback_handler(struct modem_cmux *cmux, struct modem_cmux_event event,
 					void *user_data)
 {
-	switch (event.type)
-	{
+	switch (event.type) {
 	case MODEM_CMUX_EVENT_CONNECTED:
 		k_event_post(&sample_event, SAMPLE_EVENT_CMUX_CONNECTED);
 		break;
@@ -127,7 +126,6 @@ static uint8_t *chat_argv[32];
 /*************************************************************************************************/
 static void ppp_iface_init(struct net_if *iface)
 {
-
 }
 
 MODEM_PPP_DEFINE(ppp, ppp_iface_init, 41, 1500, 64, 8);
@@ -183,24 +181,20 @@ MODEM_CHAT_MATCH_DEFINE(connect_match, "CONNECT ", "", NULL);
 /*************************************************************************************************/
 /*                                  Chat script abort matches                                    */
 /*************************************************************************************************/
-MODEM_CHAT_MATCHES_DEFINE(abort_matches,
-	MODEM_CHAT_MATCH("ERROR", "", NULL),
-	MODEM_CHAT_MATCH("BUSY", "", NULL),
-	MODEM_CHAT_MATCH("NO ANSWER", "", NULL),
-	MODEM_CHAT_MATCH("NO CARRIER", "", NULL),
-	MODEM_CHAT_MATCH("NO DIALTONE", "", NULL)
-);
+MODEM_CHAT_MATCHES_DEFINE(abort_matches, MODEM_CHAT_MATCH("ERROR", "", NULL),
+			  MODEM_CHAT_MATCH("BUSY", "", NULL),
+			  MODEM_CHAT_MATCH("NO ANSWER", "", NULL),
+			  MODEM_CHAT_MATCH("NO CARRIER", "", NULL),
+			  MODEM_CHAT_MATCH("NO DIALTONE", "", NULL));
 
 /*************************************************************************************************/
 /*                                    Chat script callback                                       */
 /*************************************************************************************************/
 
 static void modem_chat_callback_handler(struct modem_chat *chat,
-					enum modem_chat_script_result result,
-					void *user_data)
+					enum modem_chat_script_result result, void *user_data)
 {
-	switch (result)
-	{
+	switch (result) {
 	case MODEM_CHAT_SCRIPT_RESULT_SUCCESS:
 		k_event_post(&sample_event, SAMPLE_EVENT_SCRIPT_SUCCESS);
 		break;
@@ -218,15 +212,13 @@ static void modem_chat_callback_handler(struct modem_chat *chat,
 /*************************************************************************************************/
 /*                                 Initialization chat script                                    */
 /*************************************************************************************************/
-MODEM_CHAT_SCRIPT_CMDS_DEFINE(init_chat_script_cmds,
-	MODEM_CHAT_SCRIPT_CMD_RESP("ATE0", ok_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("ATH", ok_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CMEE=1", ok_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CREG=0", ok_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGSN", imei_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP(SAMPLE_CMUX, ok_match)
-);
+MODEM_CHAT_SCRIPT_CMDS_DEFINE(init_chat_script_cmds, MODEM_CHAT_SCRIPT_CMD_RESP("ATE0", ok_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("ATH", ok_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CMEE=1", ok_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CREG=0", ok_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGSN", imei_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP(SAMPLE_CMUX, ok_match));
 
 MODEM_CHAT_SCRIPT_DEFINE(init_chat_script, init_chat_script_cmds, abort_matches,
 			 modem_chat_callback_handler, 10);
@@ -235,11 +227,10 @@ MODEM_CHAT_SCRIPT_DEFINE(init_chat_script, init_chat_script_cmds, abort_matches,
 /*                                    Network status script                                      */
 /*************************************************************************************************/
 MODEM_CHAT_SCRIPT_CMDS_DEFINE(net_stat_chat_script_cmds,
-	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CREG?", creg_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGATT?", cgatt_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match)
-);
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CREG?", creg_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGATT?", cgatt_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match));
 
 MODEM_CHAT_SCRIPT_DEFINE(net_stat_chat_script, net_stat_chat_script_cmds, abort_matches,
 			 modem_chat_callback_handler, 10);
@@ -248,9 +239,9 @@ MODEM_CHAT_SCRIPT_DEFINE(net_stat_chat_script, net_stat_chat_script_cmds, abort_
 /*                                     Connect chat script                                       */
 /*************************************************************************************************/
 MODEM_CHAT_SCRIPT_CMDS_DEFINE(connect_chat_script_cmds,
-	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGDCONT=1,\"IP\","SAMPLE_APN, ok_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("ATD*99#", connect_match)
-);
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGDCONT=1,\"IP\"," SAMPLE_APN,
+							 ok_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("ATD*99#", connect_match));
 
 MODEM_CHAT_SCRIPT_DEFINE(connect_chat_script, connect_chat_script_cmds, abort_matches,
 			 modem_chat_callback_handler, 120);
@@ -260,8 +251,8 @@ MODEM_CHAT_SCRIPT_DEFINE(connect_chat_script, connect_chat_script_cmds, abort_ma
 /*************************************************************************************************/
 static struct net_mgmt_event_callback mgmt_cb;
 
-static void net_mgmt_event_callback_handler(struct net_mgmt_event_callback *cb,
-					    uint32_t mgmt_event, struct net_if *iface)
+static void net_mgmt_event_callback_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event,
+					    struct net_if *iface)
 {
 	if (mgmt_event == NET_EVENT_L4_CONNECTED) {
 		k_event_post(&sample_event, SAMPLE_EVENT_NET_L4_CONNECTED);
@@ -277,16 +268,17 @@ static void net_mgmt_event_callback_handler(struct net_mgmt_event_callback *cb,
 /*************************************************************************************************/
 static void chat_script_reset(void)
 {
-	k_event_clear(&sample_event, (SAMPLE_EVENT_SCRIPT_SUCCESS |
-		SAMPLE_EVENT_SCRIPT_ABORT | SAMPLE_EVENT_SCRIPT_TIMEOUT));
+	k_event_clear(&sample_event, (SAMPLE_EVENT_SCRIPT_SUCCESS | SAMPLE_EVENT_SCRIPT_ABORT |
+				      SAMPLE_EVENT_SCRIPT_TIMEOUT));
 }
 
 static bool chat_script_wait(void)
 {
 	uint32_t events;
 
-	events = k_event_wait(&sample_event, (SAMPLE_EVENT_SCRIPT_SUCCESS |
-			      SAMPLE_EVENT_SCRIPT_ABORT | SAMPLE_EVENT_SCRIPT_TIMEOUT),
+	events = k_event_wait(&sample_event,
+			      (SAMPLE_EVENT_SCRIPT_SUCCESS | SAMPLE_EVENT_SCRIPT_ABORT |
+			       SAMPLE_EVENT_SCRIPT_TIMEOUT),
 			      false, K_FOREVER);
 
 	return ((events & SAMPLE_EVENT_SCRIPT_SUCCESS) == 0) ? false : true;
@@ -425,8 +417,7 @@ void main(void)
 	}
 
 	/* Set IMEI as net link address */
-	net_if_set_link_addr(modem_ppp_get_iface(&ppp), imei, ARRAY_SIZE(imei),
-			     NET_LINK_UNKNOWN);
+	net_if_set_link_addr(modem_ppp_get_iface(&ppp), imei, ARRAY_SIZE(imei), NET_LINK_UNKNOWN);
 
 	/* Release bus pipe */
 	ret = modem_chat_release(&chat);
@@ -475,7 +466,7 @@ void main(void)
 
 	/* Wait for DLCI channels opened */
 	result = event_wait_all((SAMPLE_EVENT_CMUX_DLCI1_OPENED | SAMPLE_EVENT_CMUX_DLCI2_OPENED),
-			       false);
+				false);
 
 	if (result == false) {
 		return;
@@ -521,7 +512,7 @@ void main(void)
 	}
 
 	/* Wait for cellular modem registered to network */
-	while(1) {
+	while (1) {
 		chat_script_reset();
 
 		/* Run net stat script */

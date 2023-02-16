@@ -34,24 +34,23 @@ static bool modem_ppp_tx_net_pkt_buf_put(struct modem_ppp *ppp, struct net_pkt *
 
 static bool modem_ppp_tx_net_pkt_buf_get(struct modem_ppp *ppp, struct net_pkt **pkt)
 {
-    k_mutex_lock(&ppp->tx_pkt_buf_lock, K_FOREVER);
+	k_mutex_lock(&ppp->tx_pkt_buf_lock, K_FOREVER);
 
-    (*pkt) = ppp->tx_pkt_buf[ppp->tx_pkt_buf_tail];
+	(*pkt) = ppp->tx_pkt_buf[ppp->tx_pkt_buf_tail];
 
-    if (*pkt == NULL) {
-        k_mutex_unlock(&ppp->tx_pkt_buf_lock);
-        return false;
-    }
+	if (*pkt == NULL) {
+		k_mutex_unlock(&ppp->tx_pkt_buf_lock);
+		return false;
+	}
 
-    ppp->tx_pkt_buf[ppp->tx_pkt_buf_tail] = NULL;
+	ppp->tx_pkt_buf[ppp->tx_pkt_buf_tail] = NULL;
 
-    ppp->tx_pkt_buf_tail = (ppp->tx_pkt_buf_tail + 1 == ppp->tx_pkt_buf_size
-                            ? 0
-                            : ppp->tx_pkt_buf_tail + 1);
+	ppp->tx_pkt_buf_tail =
+		(ppp->tx_pkt_buf_tail + 1 == ppp->tx_pkt_buf_size ? 0 : ppp->tx_pkt_buf_tail + 1);
 
-    k_mutex_unlock(&ppp->tx_pkt_buf_lock);
+	k_mutex_unlock(&ppp->tx_pkt_buf_lock);
 
-    return true;
+	return true;
 }
 
 static uint16_t modem_ppp_fcs_init(uint8_t byte)
@@ -373,7 +372,7 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 }
 
 static void modem_ppp_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_event event,
-					 void *user_data)
+				    void *user_data)
 {
 	struct modem_ppp *ppp = (struct modem_ppp *)user_data;
 

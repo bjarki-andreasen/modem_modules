@@ -18,11 +18,10 @@ enum modem_pipe_event {
 };
 
 typedef void (*modem_pipe_callback)(struct modem_pipe *pipe, enum modem_pipe_event event,
-					   void *user_data);
+				    void *user_data);
 
-typedef int (*modem_pipe_callback_set_t)(struct modem_pipe *pipe,
-					      modem_pipe_callback handler,
-					      void *user_data);
+typedef int (*modem_pipe_callback_set_t)(struct modem_pipe *pipe, modem_pipe_callback handler,
+					 void *user_data);
 
 typedef int (*modem_pipe_transmit_t)(struct modem_pipe *pipe, const uint8_t *buf, size_t size);
 
@@ -44,9 +43,8 @@ struct modem_pipe {
  * @note The modem pipe implementation must ensure the pipe belongs to the context
  * which the pipe is connected to.
  */
-static inline int modem_pipe_callback_set(struct modem_pipe *pipe,
-					       modem_pipe_callback handler,
-					       void *user_data)
+static inline int modem_pipe_callback_set(struct modem_pipe *pipe, modem_pipe_callback handler,
+					  void *user_data)
 {
 	return pipe->api->callback_set(pipe, handler, user_data);
 }

@@ -12,18 +12,18 @@ LOG_MODULE_REGISTER(modem_chat);
 
 #include <zephyr/modem/modem_chat.h>
 
-#define MODEM_CHAT_MATCHES_INDEX_RESPONSE        (0)
-#define MODEM_CHAT_MATCHES_INDEX_ABORT           (1)
-#define MODEM_CHAT_MATCHES_INDEX_UNSOL           (2)
+#define MODEM_CHAT_MATCHES_INDEX_RESPONSE (0)
+#define MODEM_CHAT_MATCHES_INDEX_ABORT	  (1)
+#define MODEM_CHAT_MATCHES_INDEX_UNSOL	  (2)
 
-#define MODEM_CHAT_SCRIPT_STATE_RUNNING_BIT      (0)
+#define MODEM_CHAT_SCRIPT_STATE_RUNNING_BIT (0)
 
 static void modem_chat_script_stop(struct modem_chat *chat, enum modem_chat_script_result result)
 {
 	/* Handle result */
 	if (result == MODEM_CHAT_SCRIPT_RESULT_SUCCESS) {
 		LOG_DBG("%s: complete", chat->script->name);
-	} else if (result == MODEM_CHAT_SCRIPT_RESULT_ABORT){
+	} else if (result == MODEM_CHAT_SCRIPT_RESULT_ABORT) {
 		LOG_WRN("%s: aborted", chat->script->name);
 	} else {
 		LOG_WRN("%s: timed out", chat->script->name);
@@ -295,7 +295,7 @@ static void modem_chat_parse_save_match(struct modem_chat *chat)
 }
 
 static bool modem_chat_match_matches_received(struct modem_chat *chat,
-					     const struct modem_chat_match *match)
+					      const struct modem_chat_match *match)
 {
 	for (uint16_t i = 0; i < match->match_size; i++) {
 		if ((match->match[i] == chat->receive_buf[i]) ||
@@ -321,7 +321,8 @@ static bool modem_chat_parse_find_match(struct modem_chat *chat)
 			}
 
 			/* Validate match */
-			if (modem_chat_match_matches_received(chat, &chat->matches[i][u]) == false) {
+			if (modem_chat_match_matches_received(chat, &chat->matches[i][u]) ==
+			    false) {
 				continue;
 			}
 
@@ -507,7 +508,7 @@ static void modem_chat_process_byte(struct modem_chat *chat, uint8_t byte)
 		if (chat->parse_arg_len > 0) {
 			chat->argv[chat->argc] =
 				&chat->receive_buf[chat->receive_buf_len - chat->delimiter_size -
-						  chat->parse_arg_len];
+						   chat->parse_arg_len];
 			chat->receive_buf[chat->receive_buf_len - chat->delimiter_size] = '\0';
 			chat->argc++;
 		}
@@ -617,7 +618,7 @@ static void modem_chat_process_handler(struct k_work *item)
 }
 
 static void modem_chat_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_event event,
-					 void *user_data)
+				     void *user_data)
 {
 	struct modem_chat *chat = (struct modem_chat *)user_data;
 
@@ -728,8 +729,8 @@ int modem_chat_script_run(struct modem_chat *chat, const struct modem_chat_scrip
 	}
 
 	/* Test if script is running */
-	script_is_running = atomic_test_and_set_bit(&chat->script_state,
-						    MODEM_CHAT_SCRIPT_STATE_RUNNING_BIT);
+	script_is_running =
+		atomic_test_and_set_bit(&chat->script_state, MODEM_CHAT_SCRIPT_STATE_RUNNING_BIT);
 
 	/* Validate script not running */
 	if (script_is_running == true) {

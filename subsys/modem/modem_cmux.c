@@ -13,55 +13,55 @@ LOG_MODULE_REGISTER(modem_cmux);
 
 #include <zephyr/modem/modem_cmux.h>
 
-#define MODEM_CMUX_N1              256
-#define MODEM_CMUX_N2              3
+#define MODEM_CMUX_N1 256
+#define MODEM_CMUX_N2 3
 
-#define MODEM_CMUX_FCS_POLYNOMIAL  0xE0 /* reversed crc8 */
-#define MODEM_CMUX_FCS_INIT_VALUE  0xFF
+#define MODEM_CMUX_FCS_POLYNOMIAL 0xE0
+#define MODEM_CMUX_FCS_INIT_VALUE 0xFF
 
-#define MODEM_CMUX_EA              0x01 /* Extension bit      */
-#define MODEM_CMUX_CR              0x02 /* Command / Response */
-#define MODEM_CMUX_PF              0x10 /* Poll / Final       */
+#define MODEM_CMUX_EA 0x01
+#define MODEM_CMUX_CR 0x02
+#define MODEM_CMUX_PF 0x10
 
-#define MODEM_CMUX_DLCI_ADDRESS_MIN                 (1U)
-#define MODEM_CMUX_DLCI_ADDRESS_MAX                 (32767U)
-#define MODEM_CMUX_FRAME_SIZE_MIN                   (6U)
-#define MODEM_CMUX_FRAME_HEADER_SIZE_MAX            (6U)
-#define MODEM_CMUX_FRAME_TAIL_SIZE                  (2U)
+#define MODEM_CMUX_DLCI_ADDRESS_MIN	 (1U)
+#define MODEM_CMUX_DLCI_ADDRESS_MAX	 (32767U)
+#define MODEM_CMUX_FRAME_SIZE_MIN	 (6U)
+#define MODEM_CMUX_FRAME_HEADER_SIZE_MAX (6U)
+#define MODEM_CMUX_FRAME_TAIL_SIZE	 (2U)
 #define MODEM_CMUX_RECEIVE_BUF_SIZE_MIN \
 	(128U + MODEM_CMUX_FRAME_HEADER_SIZE_MAX + MODEM_CMUX_FRAME_TAIL_SIZE)
 
 #define MODEM_CMUX_DLCI_RECEIVE_BUF_SIZE_MIN \
 	(MODEM_CMUX_FRAME_HEADER_SIZE_MAX + MODEM_CMUX_FRAME_TAIL_SIZE)
 
-#define MODEM_CMUX_FRAME_TRANSMIT_INTERVAL_MIN_MS   (10U)
+#define MODEM_CMUX_FRAME_TRANSMIT_INTERVAL_MIN_MS (10U)
 
 #define MODEM_CMUX_EVENT_BUS_PIPE_RECEIVE_READY_BIT (0)
 
 enum modem_cmux_frame_types {
-        MODEM_CMUX_FRAME_TYPE_RR = 0x01,
-        MODEM_CMUX_FRAME_TYPE_UI = 0x03,
-        MODEM_CMUX_FRAME_TYPE_RNR = 0x05,
-        MODEM_CMUX_FRAME_TYPE_REJ = 0x09,
-        MODEM_CMUX_FRAME_TYPE_DM = 0x0F,
-        MODEM_CMUX_FRAME_TYPE_SABM = 0x2F,
-        MODEM_CMUX_FRAME_TYPE_DISC = 0x43,
-        MODEM_CMUX_FRAME_TYPE_UA = 0x63,
-        MODEM_CMUX_FRAME_TYPE_UIH = 0xEF,
+	MODEM_CMUX_FRAME_TYPE_RR = 0x01,
+	MODEM_CMUX_FRAME_TYPE_UI = 0x03,
+	MODEM_CMUX_FRAME_TYPE_RNR = 0x05,
+	MODEM_CMUX_FRAME_TYPE_REJ = 0x09,
+	MODEM_CMUX_FRAME_TYPE_DM = 0x0F,
+	MODEM_CMUX_FRAME_TYPE_SABM = 0x2F,
+	MODEM_CMUX_FRAME_TYPE_DISC = 0x43,
+	MODEM_CMUX_FRAME_TYPE_UA = 0x63,
+	MODEM_CMUX_FRAME_TYPE_UIH = 0xEF,
 };
 
 enum modem_cmux_command_types {
-        MODEM_CMUX_COMMAND_NSC = 0x04,
-        MODEM_CMUX_COMMAND_TEST = 0x08,
-        MODEM_CMUX_COMMAND_PSC = 0x10,
-        MODEM_CMUX_COMMAND_RLS = 0x14,
-        MODEM_CMUX_COMMAND_FCOFF = 0x18,
-        MODEM_CMUX_COMMAND_PN = 0x20,
-        MODEM_CMUX_COMMAND_RPN = 0x24,
-        MODEM_CMUX_COMMAND_FCON = 0x28,
-        MODEM_CMUX_COMMAND_CLD = 0x30,
-        MODEM_CMUX_COMMAND_SNC = 0x34,
-        MODEM_CMUX_COMMAND_MSC = 0x38,
+	MODEM_CMUX_COMMAND_NSC = 0x04,
+	MODEM_CMUX_COMMAND_TEST = 0x08,
+	MODEM_CMUX_COMMAND_PSC = 0x10,
+	MODEM_CMUX_COMMAND_RLS = 0x14,
+	MODEM_CMUX_COMMAND_FCOFF = 0x18,
+	MODEM_CMUX_COMMAND_PN = 0x20,
+	MODEM_CMUX_COMMAND_RPN = 0x24,
+	MODEM_CMUX_COMMAND_FCON = 0x28,
+	MODEM_CMUX_COMMAND_CLD = 0x30,
+	MODEM_CMUX_COMMAND_SNC = 0x34,
+	MODEM_CMUX_COMMAND_MSC = 0x38,
 };
 
 struct modem_cmux_frame_encoded {
@@ -74,14 +74,14 @@ struct modem_cmux_frame_encoded {
 };
 
 struct modem_cmux_command_type {
-	uint8_t ea : 1;
-	uint8_t cr : 1;
-	uint8_t value : 6;
+	uint8_t ea: 1;
+	uint8_t cr: 1;
+	uint8_t value: 6;
 };
 
 struct modem_cmux_command_length {
-	uint8_t ea : 1;
-	uint8_t value : 7;
+	uint8_t ea: 1;
+	uint8_t value: 7;
 };
 
 struct modem_cmux_command {
@@ -90,8 +90,8 @@ struct modem_cmux_command {
 	uint8_t value[];
 };
 
-static int modem_cmux_to_command(struct modem_cmux_command **command,
-				 const uint8_t *data, uint16_t data_len)
+static int modem_cmux_to_command(struct modem_cmux_command **command, const uint8_t *data,
+				 uint16_t data_len)
 {
 	if ((data == NULL) || (data_len < 2)) {
 		return -EINVAL;
@@ -233,7 +233,7 @@ static void modem_cmux_raise_event(struct modem_cmux *cmux, struct modem_cmux_ev
 }
 
 static void modem_cmux_bus_callback(struct modem_pipe *pipe, enum modem_pipe_event event,
-					 void *user_data)
+				    void *user_data)
 {
 	struct modem_cmux *cmux = (struct modem_cmux *)user_data;
 
@@ -421,15 +421,14 @@ static void modem_cmux_process_on_frame_received_uih_control(struct modem_cmux *
 		return;
 	}
 
-	if ((command->type.value == MODEM_CMUX_COMMAND_CLD) &&
-	    (command->type.cr == 1) &&
+	if ((command->type.value == MODEM_CMUX_COMMAND_CLD) && (command->type.cr == 1) &&
 	    (cmux->state == MODEM_CMUX_STATE_DISCONNECTING)) {
 		/* Update CMUX state */
 		cmux->state = MODEM_CMUX_STATE_DISCONNECTED;
 
 		/* Notify CMUX state changed */
-		struct modem_cmux_event cmux_event = {
-			.dlci_address = 0, .type = MODEM_CMUX_EVENT_DISCONNECTED};
+		struct modem_cmux_event cmux_event = {.dlci_address = 0,
+						      .type = MODEM_CMUX_EVENT_DISCONNECTED};
 
 		modem_cmux_raise_event(cmux, cmux_event);
 
@@ -440,8 +439,7 @@ static void modem_cmux_process_on_frame_received_uih_control(struct modem_cmux *
 		return;
 	}
 
-	if ((command->type.value == MODEM_CMUX_COMMAND_MSC) &&
-	    (command->type.cr == 1) &&
+	if ((command->type.value == MODEM_CMUX_COMMAND_MSC) && (command->type.cr == 1) &&
 	    (command->type.ea == 1)) {
 		command->type.cr = 0;
 		modem_cmux_bus_write_frame(cmux, &cmux->frame);
@@ -743,9 +741,8 @@ static void modem_cmux_process_received(struct k_work *item)
 	k_work_schedule(&cmux->process_received.dwork, K_NO_WAIT);
 }
 
-static int modem_cmux_dlci_pipe_callback_set(struct modem_pipe *pipe,
-						  modem_pipe_callback handler,
-						  void *user_data)
+static int modem_cmux_dlci_pipe_callback_set(struct modem_pipe *pipe, modem_pipe_callback handler,
+					     void *user_data)
 {
 	struct modem_cmux_dlci *dlci = (struct modem_cmux_dlci *)pipe->data;
 	struct modem_cmux *cmux = dlci->cmux;
@@ -836,9 +833,8 @@ int modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *con
 	}
 
 	/* Validate config */
-	if ((config->callback == NULL) || (config->dlcis == NULL) ||
-	    (config->dlcis_size == 0) || (config->receive_buf == NULL) ||
-	    (config->receive_buf_size == 0)) {
+	if ((config->callback == NULL) || (config->dlcis == NULL) || (config->dlcis_size == 0) ||
+	    (config->receive_buf == NULL) || (config->receive_buf_size == 0)) {
 		return -EINVAL;
 	}
 

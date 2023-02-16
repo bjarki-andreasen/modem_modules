@@ -3,9 +3,8 @@
 
 #include <string.h>
 
-static int modem_pipe_mock_pipe_callback_set(struct modem_pipe *pipe,
-						  modem_pipe_callback handler,
-						  void *user_data)
+static int modem_pipe_mock_pipe_callback_set(struct modem_pipe *pipe, modem_pipe_callback handler,
+					     void *user_data)
 {
 	struct modem_pipe_mock *mock = (struct modem_pipe_mock *)pipe->data;
 
@@ -54,7 +53,7 @@ static void modem_pipe_mock_received_handler(struct k_work *item)
 	}
 
 	mock->pipe_callback(mock->pipe, MODEM_PIPE_EVENT_RECEIVE_READY,
-				 mock->pipe_callback_user_data);
+			    mock->pipe_callback_user_data);
 }
 
 int modem_pipe_mock_init(struct modem_pipe_mock *mock, const struct modem_pipe_mock_config *config)

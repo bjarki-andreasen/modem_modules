@@ -24,8 +24,8 @@ struct modem_chat;
  * @param argc Number of parsed arguments, arg 0 holds the exact match
  * @param user_data Free to use user data set during modem_chat_init()
  */
-typedef void (*modem_chat_match_callback)(struct modem_chat *chat, char **argv,
-					  uint16_t argc, void *user_data);
+typedef void (*modem_chat_match_callback)(struct modem_chat *chat, char **argv, uint16_t argc,
+					  void *user_data);
 
 /**
  * @brief Modem command match
@@ -46,32 +46,27 @@ struct modem_chat_match {
 	const modem_chat_match_callback callback;
 };
 
-#define MODEM_CHAT_MATCH(_match, _separators, _callback)                        \
-	{                                                                       \
-		.match = (uint8_t *)(_match),                                   \
-		.match_size = (uint8_t)(sizeof(_match) - 1),                    \
-		.separators = (uint8_t *)(_separators),                         \
-		.separators_size = (uint8_t)(sizeof(_separators) - 1),          \
-		.wildcards = false,                                             \
-		.callback = _callback,                                          \
+#define MODEM_CHAT_MATCH(_match, _separators, _callback)                                           \
+	{                                                                                          \
+		.match = (uint8_t *)(_match), .match_size = (uint8_t)(sizeof(_match) - 1),         \
+		.separators = (uint8_t *)(_separators),                                            \
+		.separators_size = (uint8_t)(sizeof(_separators) - 1), .wildcards = false,         \
+		.callback = _callback,                                                             \
 	}
 
-#define MODEM_CHAT_MATCH_WILDCARD(_match, _separators, _callback)               \
-	{                                                                       \
-		.match = (uint8_t *)(_match),                                   \
-		.match_size = (uint8_t)(sizeof(_match) - 1),                    \
-		.separators = (uint8_t *)(_separators),                         \
-		.separators_size = (uint8_t)(sizeof(_separators) - 1),          \
-		.wildcards = true,                                              \
-		.callback = _callback,                                          \
+#define MODEM_CHAT_MATCH_WILDCARD(_match, _separators, _callback)                                  \
+	{                                                                                          \
+		.match = (uint8_t *)(_match), .match_size = (uint8_t)(sizeof(_match) - 1),         \
+		.separators = (uint8_t *)(_separators),                                            \
+		.separators_size = (uint8_t)(sizeof(_separators) - 1), .wildcards = true,          \
+		.callback = _callback,                                                             \
 	}
 
-#define MODEM_CHAT_MATCH_DEFINE(_sym, _match, _separators, _callback)           \
-	const static struct modem_chat_match _sym =                             \
-		MODEM_CHAT_MATCH(_match, _separators, _callback)
+#define MODEM_CHAT_MATCH_DEFINE(_sym, _match, _separators, _callback)                              \
+	const static struct modem_chat_match _sym = MODEM_CHAT_MATCH(_match, _separators, _callback)
 
-#define MODEM_CHAT_MATCHES_DEFINE(_sym, ...)                                    \
-	const static struct modem_chat_match _sym[] = { __VA_ARGS__ }
+#define MODEM_CHAT_MATCHES_DEFINE(_sym, ...)                                                       \
+	const static struct modem_chat_match _sym[] = {__VA_ARGS__}
 
 /**
  * @brief Modem command script command
@@ -84,32 +79,27 @@ struct modem_chat_script_chat {
 	const char *request;
 	const struct modem_chat_match *const response_matches;
 	const uint16_t response_matches_size;
-
 };
 
-#define MODEM_CHAT_SCRIPT_CMD_RESP(_request, _response_match)                   \
-	{                                                                       \
-		.request = _request,                                            \
-		.response_matches = &_response_match,                           \
-		.response_matches_size = 1                                      \
+#define MODEM_CHAT_SCRIPT_CMD_RESP(_request, _response_match)                                      \
+	{                                                                                          \
+		.request = _request, .response_matches = &_response_match,                         \
+		.response_matches_size = 1                                                         \
 	}
 
-#define MODEM_CHAT_SCRIPT_CMD_RESP_MULT(_request, _response_matches)            \
-	{                                                                       \
-		.request = _request,                                            \
-		.response_matches = _response_matches,                          \
-		.response_matches_size = ARRAY_SIZE(_response_matches)          \
+#define MODEM_CHAT_SCRIPT_CMD_RESP_MULT(_request, _response_matches)                               \
+	{                                                                                          \
+		.request = _request, .response_matches = _response_matches,                        \
+		.response_matches_size = ARRAY_SIZE(_response_matches)                             \
 	}
 
-#define MODEM_CHAT_SCRIPT_CMD_RESP_NONE(_request)                               \
-	{                                                                       \
-		.request = _request,                                            \
-		.response_matches = NULL,                                       \
-		.response_matches_size = 0                                      \
+#define MODEM_CHAT_SCRIPT_CMD_RESP_NONE(_request)                                                  \
+	{                                                                                          \
+		.request = _request, .response_matches = NULL, .response_matches_size = 0          \
 	}
 
-#define MODEM_CHAT_SCRIPT_CMDS_DEFINE(_sym, ...)                                \
-	const static struct modem_chat_script_chat _sym[] = { __VA_ARGS__ }
+#define MODEM_CHAT_SCRIPT_CMDS_DEFINE(_sym, ...)                                                   \
+	const static struct modem_chat_script_chat _sym[] = {__VA_ARGS__}
 
 enum modem_chat_script_result {
 	MODEM_CHAT_SCRIPT_RESULT_SUCCESS,
@@ -125,8 +115,7 @@ enum modem_chat_script_result {
  * @param user_data Free to use user data set during modem_chat_init()
  */
 typedef void (*modem_chat_script_callback)(struct modem_chat *chat,
-					  enum modem_chat_script_result result,
-					  void *user_data);
+					   enum modem_chat_script_result result, void *user_data);
 
 /**
  * @brief Modem command script
@@ -150,15 +139,15 @@ struct modem_chat_script {
 	const uint32_t timeout;
 };
 
-#define MODEM_CHAT_SCRIPT_DEFINE(_sym, _script_chats, _abort_matches, _callback, _timeout)      \
-	static struct modem_chat_script _sym = {                                                \
-		.name = #_sym,                                                                  \
-		.script_chats = _script_chats,                                                  \
-		.script_chats_size = ARRAY_SIZE(_script_chats),                                 \
-		.abort_matches = _abort_matches,                                                \
-		.abort_matches_size = ARRAY_SIZE(_abort_matches),                               \
-		.callback = _callback,                                                          \
-		.timeout = _timeout,                                                            \
+#define MODEM_CHAT_SCRIPT_DEFINE(_sym, _script_chats, _abort_matches, _callback, _timeout)         \
+	static struct modem_chat_script _sym = {                                                   \
+		.name = #_sym,                                                                     \
+		.script_chats = _script_chats,                                                     \
+		.script_chats_size = ARRAY_SIZE(_script_chats),                                    \
+		.abort_matches = _abort_matches,                                                   \
+		.abort_matches_size = ARRAY_SIZE(_abort_matches),                                  \
+		.callback = _callback,                                                             \
+		.timeout = _timeout,                                                               \
 	}
 
 /**

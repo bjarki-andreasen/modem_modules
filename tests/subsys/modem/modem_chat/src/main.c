@@ -33,16 +33,16 @@ static struct modem_pipe mock_pipe;
 /*************************************************************************************************/
 /*                                        Track callbacks                                        */
 /*************************************************************************************************/
-#define MODEM_CHAT_UTEST_ON_IMEI_CALLED_BIT              (0)
-#define MODEM_CHAT_UTEST_ON_CREG_CALLED_BIT              (1)
-#define MODEM_CHAT_UTEST_ON_CGREG_CALLED_BIT             (2)
-#define MODEM_CHAT_UTEST_ON_QENG_SERVINGCELL_CALLED_BIT  (3)
-#define MODEM_CHAT_UTEST_ON_NO_CARRIER_CALLED_BIT        (4)
-#define MODEM_CHAT_UTEST_ON_ERROR_CALLED_BIT             (5)
-#define MODEM_CHAT_UTEST_ON_RDY_CALLED_BIT               (6)
-#define MODEM_CHAT_UTEST_ON_APP_RDY_CALLED_BIT           (7)
+#define MODEM_CHAT_UTEST_ON_IMEI_CALLED_BIT		 (0)
+#define MODEM_CHAT_UTEST_ON_CREG_CALLED_BIT		 (1)
+#define MODEM_CHAT_UTEST_ON_CGREG_CALLED_BIT		 (2)
+#define MODEM_CHAT_UTEST_ON_QENG_SERVINGCELL_CALLED_BIT	 (3)
+#define MODEM_CHAT_UTEST_ON_NO_CARRIER_CALLED_BIT	 (4)
+#define MODEM_CHAT_UTEST_ON_ERROR_CALLED_BIT		 (5)
+#define MODEM_CHAT_UTEST_ON_RDY_CALLED_BIT		 (6)
+#define MODEM_CHAT_UTEST_ON_APP_RDY_CALLED_BIT		 (7)
 #define MODEM_CHAT_UTEST_ON_NORMAL_POWER_DOWN_CALLED_BIT (8)
-#define MODEM_CHAT_UTEST_ON_SCRIPT_CALLBACK_BIT          (9)
+#define MODEM_CHAT_UTEST_ON_SCRIPT_CALLBACK_BIT		 (9)
 
 static atomic_t callback_called;
 
@@ -152,30 +152,23 @@ MODEM_CHAT_MATCH_DEFINE(imei_match, "", "", on_imei);
 MODEM_CHAT_MATCH_DEFINE(creg_match, "CREG: ", ",", on_creg);
 MODEM_CHAT_MATCH_DEFINE(cgreg_match, "CGREG: ", ",", on_cgreg);
 MODEM_CHAT_MATCH_DEFINE(qeng_servinc_cell_match, "+QENG: \"servingcell\",", ",",
-		       on_qeng_serving_cell);
+			on_qeng_serving_cell);
 
-MODEM_CHAT_MATCHES_DEFINE(unsol_matches,
-	MODEM_CHAT_MATCH("RDY", "", on_rdy),
-	MODEM_CHAT_MATCH("APP RDY", "", on_app_rdy),
-	MODEM_CHAT_MATCH("NORMAL POWER DOWN", "", on_normal_power_down)
-);
+MODEM_CHAT_MATCHES_DEFINE(unsol_matches, MODEM_CHAT_MATCH("RDY", "", on_rdy),
+			  MODEM_CHAT_MATCH("APP RDY", "", on_app_rdy),
+			  MODEM_CHAT_MATCH("NORMAL POWER DOWN", "", on_normal_power_down));
 
-MODEM_CHAT_SCRIPT_CMDS_DEFINE(script_cmds,
-	MODEM_CHAT_SCRIPT_CMD_RESP("AT", ok_match),
+MODEM_CHAT_SCRIPT_CMDS_DEFINE(
+	script_cmds, MODEM_CHAT_SCRIPT_CMD_RESP("AT", ok_match),
 	MODEM_CHAT_SCRIPT_CMD_RESP("ATE0", ok_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("IMEI?", imei_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
+	MODEM_CHAT_SCRIPT_CMD_RESP("IMEI?", imei_match), MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
 	MODEM_CHAT_SCRIPT_CMD_RESP("AT+CREG?;+CGREG?", creg_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("", cgreg_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
+	MODEM_CHAT_SCRIPT_CMD_RESP("", cgreg_match), MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
 	MODEM_CHAT_SCRIPT_CMD_RESP("AT+QENG=\"servingcell\"", qeng_servinc_cell_match),
-	MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
-);
+	MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match), );
 
-MODEM_CHAT_MATCHES_DEFINE(abort_matches,
-	MODEM_CHAT_MATCH("NO CARRIER", "", on_no_carrier),
-	MODEM_CHAT_MATCH("ERROR ", ",:", on_error)
-);
+MODEM_CHAT_MATCHES_DEFINE(abort_matches, MODEM_CHAT_MATCH("NO CARRIER", "", on_no_carrier),
+			  MODEM_CHAT_MATCH("ERROR ", ",:", on_error));
 
 MODEM_CHAT_SCRIPT_DEFINE(script, script_cmds, abort_matches, on_script_result, 4);
 
@@ -328,35 +321,29 @@ ZTEST(modem_chat, script_no_error)
 
 	modem_pipe_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
 
-	zassert_true(memcmp(buffer, "AT+CREG?;+CGREG?\r\n",
-		     sizeof("AT+CREG?;+CGREG?\r\n") - 1) == 0,
+	zassert_true(memcmp(buffer, "AT+CREG?;+CGREG?\r\n", sizeof("AT+CREG?;+CGREG?\r\n") - 1) ==
+			     0,
 		     "Request not sent as expected");
 
 	modem_pipe_mock_put(&mock, creg_response, sizeof(creg_response) - 1);
 	k_msleep(100);
 
-	zassert_true(memcmp(argv_buffers[0], "CREG: ", sizeof("CREG: ")) == 0,
-		     "Unexpected argv");
+	zassert_true(memcmp(argv_buffers[0], "CREG: ", sizeof("CREG: ")) == 0, "Unexpected argv");
 
-	zassert_true(memcmp(argv_buffers[1], "1", sizeof("1")) == 0,
-		     "Unexpected argv");
+	zassert_true(memcmp(argv_buffers[1], "1", sizeof("1")) == 0, "Unexpected argv");
 
-	zassert_true(memcmp(argv_buffers[2], "2", sizeof("2")) == 0,
-		     "Unexpected argv");
+	zassert_true(memcmp(argv_buffers[2], "2", sizeof("2")) == 0, "Unexpected argv");
 
 	zassert_true(argc_buffers == 3, "Unexpected argc");
 
 	modem_pipe_mock_put(&mock, cgreg_response, sizeof(cgreg_response) - 1);
 	k_msleep(100);
 
-	zassert_true(memcmp(argv_buffers[0], "CGREG: ", sizeof("CGREG: ")) == 0,
-		     "Unexpected argv");
+	zassert_true(memcmp(argv_buffers[0], "CGREG: ", sizeof("CGREG: ")) == 0, "Unexpected argv");
 
-	zassert_true(memcmp(argv_buffers[1], "10", sizeof("10")) == 0,
-		     "Unexpected argv");
+	zassert_true(memcmp(argv_buffers[1], "10", sizeof("10")) == 0, "Unexpected argv");
 
-	zassert_true(memcmp(argv_buffers[2], "43", sizeof("43")) == 0,
-		     "Unexpected argv");
+	zassert_true(memcmp(argv_buffers[2], "43", sizeof("43")) == 0, "Unexpected argv");
 
 	zassert_true(argc_buffers == 3, "Unexpected argc");
 
@@ -372,7 +359,7 @@ ZTEST(modem_chat, script_no_error)
 	modem_pipe_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
 
 	zassert_true(memcmp(buffer, "AT+QENG=\"servingcell\"\r\n",
-		     sizeof("AT+QENG=\"servingcell\"\r\n") - 1) == 0,
+			    sizeof("AT+QENG=\"servingcell\"\r\n") - 1) == 0,
 		     "Request not sent as expected");
 
 	modem_pipe_mock_put(&mock, qeng_servinc_cell_response,
@@ -381,14 +368,13 @@ ZTEST(modem_chat, script_no_error)
 	k_msleep(100);
 
 	zassert_true(memcmp(argv_buffers[0], "+QENG: \"servingcell\",",
-		     sizeof("+QENG: \"servingcell\",")) == 0,
+			    sizeof("+QENG: \"servingcell\",")) == 0,
 		     "Unexpected argv");
 
 	zassert_true(memcmp(argv_buffers[1], "\"NOCONN\"", sizeof("\"NOCONN\"")) == 0,
 		     "Unexpected argv");
 
-	zassert_true(memcmp(argv_buffers[10], "-68", sizeof("-68")) == 0,
-		     "Unexpected argv");
+	zassert_true(memcmp(argv_buffers[10], "-68", sizeof("-68")) == 0, "Unexpected argv");
 
 	zassert_true(argv_buffers[25][0] == '\0', "Unexpected argv");
 
@@ -460,5 +446,5 @@ ZTEST(modem_chat, start_script_then_time_out)
 /*************************************************************************************************/
 /*                                         Test suite                                            */
 /*************************************************************************************************/
-ZTEST_SUITE(modem_chat, NULL, test_modem_chat_setup, test_modem_chat_before,
-	    test_modem_chat_after, NULL);
+ZTEST_SUITE(modem_chat, NULL, test_modem_chat_setup, test_modem_chat_before, test_modem_chat_after,
+	    NULL);
