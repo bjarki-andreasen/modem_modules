@@ -32,41 +32,38 @@ LOG_MODULE_REGISTER(quectel_bg95, CONFIG_LOG_DEFAULT_LEVEL);
  * Instance configuration struct
  ************************************************************************/
 struct quectel_bgxx_config {
-	const struct device *uart;
+	const struct device *uart_dev;
 };
 
 /************************************************************************
  * Instance data struct
  ************************************************************************/
-struct quectel_bgxx_data {
-
-	/* device */
-	const struct device *uart_dev;
-	struct k_mutex state_mut;
-};
+struct quectel_bgxx_data {};
 
 static int wrap_uart_quectel_bgxx_poll_in(const struct device *dev, unsigned char *c)
 {
-	struct quectel_bgxx_data *data = (struct quectel_bgxx_data *)dev->data;
-	return uart_poll_in(data->uart_dev, c);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	return uart_poll_in(cfg->uart_dev, c);
 }
 
 static void wrap_uart_quectel_bgxx_poll_out(const struct device *dev, unsigned char c)
 {
-	struct quectel_bgxx_data *data = (struct quectel_bgxx_data *)dev->data;
-	uart_poll_out(data->uart_dev, c);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	uart_poll_out(cfg->uart_dev, c);
 }
 
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int wrap_uart_quectel_bgxx_uart_configure(const struct device *dev,
-						 const struct uart_config *cfg)
+						 const struct uart_config *uart_cfg)
 {
-	return uart_configure(dev, cfg);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;	
+	return uart_configure(cfg->uart_dev, uart_cfg);
 }
 
-static int wrap_uart_quectel_bgxx_uart_config_get(const struct device *dev, struct uart_config *cfg)
+static int wrap_uart_quectel_bgxx_uart_config_get(const struct device *dev, struct uart_config *uart_cfg)
 {
-	return uart_config_get(dev, cfg);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;	
+	return uart_config_get(cfg->uart_dev, uart_cfg);
 }
 #endif
 
@@ -74,67 +71,77 @@ static int wrap_uart_quectel_bgxx_uart_config_get(const struct device *dev, stru
 static int wrap_uart_quectel_bgxx_uart_fifo_fill(const struct device *dev, const uint8_t *tx_data,
 						 int size)
 {
-	struct quectel_bgxx_data *data = (struct quectel_bgxx_data *)dev->data;
-	return uart_fifo_fill(data->uart_dev, tx_data, size);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	return uart_fifo_fill(cfg->uart_dev, tx_data, size);
 }
 
 static int wrap_uart_quectel_bgxx_uart_fifo_read(const struct device *dev, uint8_t *rx_data,
 						 const int size)
 {
-	struct quectel_bgxx_data *data = (struct quectel_bgxx_data *)dev->data;
-	return uart_fifo_read(data->uart_dev, rx_data, size);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	return uart_fifo_read(cfg->uart_dev, rx_data, size);
 }
 
 static void wrap_uart_quectel_bgxx_uart_irq_tx_enable(const struct device *dev)
 {
-	uart_irq_tx_enable(dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	uart_irq_tx_enable(cfg->uart_dev);
 }
 
 static void wrap_uart_quectel_bgxx_uart_irq_tx_disable(const struct device *dev)
 {
-	uart_irq_tx_disable(dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	uart_irq_tx_disable(cfg->uart_dev);
 }
 
 static int wrap_uart_quectel_bgxx_uart_irq_tx_ready(const struct device *dev)
 {
-	return uart_irq_tx_ready(dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	return uart_irq_tx_ready(cfg->uart_dev);
 }
 
 static void wrap_uart_quectel_bgxx_uart_irq_rx_enable(const struct device *dev)
 {
-	uart_irq_rx_enable(dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	uart_irq_rx_enable(cfg->uart_dev);
 }
 
 static void wrap_uart_quectel_bgxx_uart_irq_rx_disable(const struct device *dev)
 {
-	uart_irq_rx_disable(dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	uart_irq_rx_disable(cfg->uart_dev);
 }
 
 static int wrap_uart_quectel_bgxx_uart_irq_tx_complete(const struct device *dev)
 {
-	return uart_irq_tx_complete(dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	return uart_irq_tx_complete(cfg->uart_dev);
 }
 
 static int wrap_uart_quectel_bgxx_uart_irq_rx_ready(const struct device *dev)
 {
-	return uart_irq_rx_ready(dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	return uart_irq_rx_ready(cfg->uart_dev);
 }
 
 static int wrap_uart_quectel_bgxx_uart_irq_is_pending(const struct device *dev)
 {
-	return uart_irq_is_pending(dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	return uart_irq_is_pending(cfg->uart_dev);
 }
 
 static int wrap_uart_quectel_bgxx_uart_irq_update(const struct device *dev)
 {
-	return uart_irq_update(dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	return uart_irq_update(cfg->uart_dev);
 }
 
 static void wrap_uart_quectel_bgxx_uart_irq_callback_set(const struct device *dev,
 							 uart_irq_callback_user_data_t cb,
 							 void *user_data)
 {
-	uart_irq_callback_user_data_set(dev, cb, user_data);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	uart_irq_callback_user_data_set(cfg->uart_dev, cb, user_data);
 }
 #endif
 
@@ -163,25 +170,24 @@ static const struct uart_driver_api quectel_bgxx_uart_api = {
 
 static int quectel_bgxx_init(const struct device *dev)
 {
-	struct quectel_bgxx_data *data = (struct quectel_bgxx_data *)dev->data;
-
-	/* Initialize mutexes */
-	k_mutex_init(&data->state_mut);
+	//struct quectel_bgxx_config *data = (struct quectel_bgxx_config *)dev->config;
 
 	return 0;
 }
 
+//Disable part for PM -> it causes system to crash now, seems issue with uart
+#if 0
 /* Enter section in which cellular state is accessed or altered */
 static void quectel_bgxx_state_section_enter(struct quectel_bgxx_data *bgxx_data)
 {
 	/* Get exclusive access to GNSS commands */
-	k_mutex_lock(&bgxx_data->state_mut, K_FOREVER);
+//	k_mutex_lock(&bgxx_data->state_mut, K_FOREVER);
 }
 
 /* Leave section in which cellular state is accessed or altered */
 static void quectel_bgxx_state_section_leave(struct quectel_bgxx_data *bgxx_data)
 {
-	k_mutex_unlock(&bgxx_data->state_mut);
+	//k_mutex_unlock(&bgxx_data->state_mut);
 }
 
 /* Power on modem, enable CMUX */
@@ -193,21 +199,16 @@ static int quectel_bgxx_resume(const struct device *dev)
 	// change baudrate
 	// uart domains
 
-	struct quectel_bgxx_data *data = (struct quectel_bgxx_data *)dev->data;
+	struct quectel_bgxx_config *data = (struct quectel_bgxx_config *)dev->config;
 	pm_device_runtime_get(data->uart_dev);
-
-	// char read_char;
-	// uart_poll_in(data->uart_dev,&read_char);
-
 	return 0;
 }
 
 /* modem to low power state */
 static int quectel_bgxx_suspend(const struct device *dev)
 {
-	// oposite to resume
-	struct quectel_bgxx_data *data = (struct quectel_bgxx_data *)dev->data;
-	pm_device_runtime_put(data->uart_dev);
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
+	pm_device_runtime_put(cfg->uart_dev);
 	return 0;
 }
 
@@ -261,7 +262,7 @@ static int quectel_bgxx_pm_action(const struct device *dev, enum pm_device_actio
 
 	return rc;
 }
-
+#endif
 /************************************************************************
  * Instanciation parent device macro
  ************************************************************************/
@@ -269,7 +270,7 @@ static int quectel_bgxx_pm_action(const struct device *dev, enum pm_device_actio
 
 #define BGXX_DEVICE(node_id)                                                                       \
 	static struct quectel_bgxx_config quectel_bgxx_config_##node_id = {                        \
-		.uart = DEVICE_DT_GET(DT_BUS(node_id)),                                            \
+		.uart_dev = DEVICE_DT_GET(DT_BUS(node_id)),                                            \
 	};                                                                                         \
                                                                                                    \
 	static struct quectel_bgxx_data quectel_bgxx_data_##node_id = {};                          \
