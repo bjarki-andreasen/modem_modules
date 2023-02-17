@@ -91,7 +91,7 @@ struct modem_cmux_frame {
 	bool cr;
 	bool pf;
 	uint8_t type;
-	uint8_t *data;
+	const uint8_t *data;
 	uint16_t data_len;
 };
 
@@ -100,6 +100,11 @@ enum modem_cmux_state {
 	MODEM_CMUX_STATE_CONNECTING,
 	MODEM_CMUX_STATE_CONNECTED,
 	MODEM_CMUX_STATE_DISCONNECTING,
+};
+
+struct modem_cmux_work {
+	struct k_work work;
+	struct modem_cmux *cmux;
 };
 
 struct modem_cmux_work_delayable {
@@ -133,9 +138,9 @@ struct modem_cmux {
 	uint16_t receive_buf_size;
 	uint16_t receive_buf_len;
 
-	/* Work buffer */
-	uint8_t work_buf[64];
-	uint16_t work_buf_len;
+	/* Transmit buffer */
+	struct ring_buf transmit_rb;
+	struct k_mutex transmit_rb_lock;
 
 	/* Received frame */
 	struct modem_cmux_frame frame;
@@ -145,6 +150,8 @@ struct modem_cmux {
 	/* Work */
 	struct modem_cmux_work_delayable process_received;
 	k_timeout_t receive_timeout;
+
+	struct modem_cmux_work transmit_work;
 };
 
 /**
@@ -164,6 +171,8 @@ struct modem_cmux_config {
 	uint16_t dlcis_size;
 	uint8_t *receive_buf;
 	uint16_t receive_buf_size;
+	uint8_t *transmit_buf;
+	uint16_t transmit_buf_size;
 	k_timeout_t receive_timeout;
 };
 
@@ -187,6 +196,8 @@ int modem_cmux_connect(struct modem_cmux *cmux, struct modem_pipe *pipe);
  * @param dlci_address DLCI channel address
  * @param receive_buf Receive buffer used by pipe
  * @param receive_buf_size Size of receive buffer used by pipe
+ * @param transmit_buf Transmit buffer used by pipe
+ * @param transmit_buf_size Size of transmit buffer used by pipe
  */
 struct modem_cmux_dlci_config {
 	uint16_t dlci_address;

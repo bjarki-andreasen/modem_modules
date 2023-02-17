@@ -117,11 +117,18 @@ int modem_pipe_mock_get(struct modem_pipe_mock *mock, uint8_t *buf, size_t size)
 
 int modem_pipe_mock_put(struct modem_pipe_mock *mock, const uint8_t *buf, size_t size)
 {
+	size_t remaining = size;
 	int ret;
 
-	ret = ring_buf_put(&mock->rx_rb, buf, size);
+	while (remaining) {
+		ret = ring_buf_put(&mock->rx_rb, &buf[size - remaining], remaining);
 
-	k_work_submit(&mock->received_work_item.work);
+		remaining -= ret;
 
-	return ret;
+		k_work_submit(&mock->received_work_item.work);
+
+		k_msleep(10);
+	}
+
+	return size;
 }

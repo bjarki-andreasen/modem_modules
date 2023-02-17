@@ -68,6 +68,7 @@ static uint8_t pipe_uart_tx_buf[256];
 /*************************************************************************************************/
 static struct modem_cmux cmux;
 static uint8_t cmux_receive_buf[128];
+static uint8_t cmux_transmit_buf[256];
 static struct modem_cmux_dlci dlcis[2];
 
 static uint8_t dlci1_receive_buf[128];
@@ -351,6 +352,8 @@ void main(void)
 		.dlcis_size = ARRAY_SIZE(dlcis),
 		.receive_buf = cmux_receive_buf,
 		.receive_buf_size = ARRAY_SIZE(cmux_receive_buf),
+		.transmit_buf = cmux_transmit_buf,
+		.transmit_buf_size = ARRAY_SIZE(cmux_transmit_buf),
 		.receive_timeout = K_MSEC(3),
 	};
 
