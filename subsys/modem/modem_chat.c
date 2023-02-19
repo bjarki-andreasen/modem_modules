@@ -622,7 +622,9 @@ static void modem_chat_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_ev
 {
 	struct modem_chat *chat = (struct modem_chat *)user_data;
 
-	k_work_schedule(&chat->process_work.dwork, chat->process_timeout);
+	if (event == MODEM_PIPE_EVENT_RECEIVE_READY) {
+		k_work_schedule(&chat->process_work.dwork, chat->process_timeout);
+	}
 }
 
 /*********************************************************
@@ -685,19 +687,16 @@ int modem_chat_init(struct modem_chat *chat, const struct modem_chat_config *con
 
 int modem_chat_attach(struct modem_chat *chat, struct modem_pipe *pipe)
 {
-	/* Validate arguments */
-	if ((chat == NULL) || (pipe == NULL)) {
-		return -EINVAL;
-	}
-
 	/* Associate command handler with pipe */
 	chat->pipe = pipe;
 
 	/* Reset parser */
 	modem_chat_parse_reset(chat);
 
-	/* Set pipe event handler */
-	return modem_pipe_callback_set(pipe, modem_chat_pipe_callback, chat);
+	/* Attach to modem pipe */
+	modem_pipe_attach(chat->pipe, modem_chat_pipe_callback, chat);
+
+	return 0;
 }
 
 int modem_chat_script_run(struct modem_chat *chat, const struct modem_chat_script *script)
@@ -760,7 +759,10 @@ int modem_chat_release(struct modem_chat *chat)
 	}
 
 	/* Release pipe */
-	modem_pipe_callback_set(chat->pipe, NULL, NULL);
+	modem_pipe_release(chat->pipe);
+
+	/* Unreference pipe */
+	chat->pipe = NULL;
 
 	/* Cancel all work */
 	struct k_work_sync sync;
@@ -768,9 +770,6 @@ int modem_chat_release(struct modem_chat *chat)
 	k_work_cancel_sync(&chat->script_abort_work.work, &sync);
 	k_work_cancel_delayable_sync(&chat->process_work.dwork, &sync);
 	k_work_cancel_delayable_sync(&chat->script_send_work.dwork, &sync);
-
-	/* Unreference pipe */
-	chat->pipe = NULL;
 
 	return 0;
 }

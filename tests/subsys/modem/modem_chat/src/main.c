@@ -13,7 +13,7 @@
 #include <string.h>
 
 #include <zephyr/modem/modem_chat.h>
-#include <modem_pipe_mock.h>
+#include <modem_backend_mock.h>
 
 /*************************************************************************************************/
 /*                                         Instances                                             */
@@ -24,11 +24,10 @@ static uint8_t cmd_receive_buf[128];
 static uint8_t *cmd_argv[32];
 static uint32_t cmd_user_data = 0x145212;
 
-static struct modem_pipe_mock mock;
+static struct modem_backend_mock mock;
 static uint8_t mock_rx_buf[128];
 static uint8_t mock_tx_buf[128];
-
-static struct modem_pipe mock_pipe;
+static struct modem_pipe *mock_pipe;
 
 /*************************************************************************************************/
 /*                                        Track callbacks                                        */
@@ -207,19 +206,19 @@ static void *test_modem_chat_setup(void)
 
 	zassert(modem_chat_init(&cmd, &cmd_config) == 0, "Failed to init modem CMD");
 
-	const struct modem_pipe_mock_config mock_config = {
+	const struct modem_backend_mock_config mock_config = {
 		.rx_buf = mock_rx_buf,
 		.rx_buf_size = ARRAY_SIZE(mock_rx_buf),
 		.tx_buf = mock_tx_buf,
 		.tx_buf_size = ARRAY_SIZE(mock_tx_buf),
+		.limit = 8,
 	};
 
-	zassert(modem_pipe_mock_init(&mock, &mock_config) == 0, "Failed to init modem pipe mock");
+	mock_pipe = modem_backend_mock_init(&mock, &mock_config);
 
-	zassert(modem_pipe_mock_open(&mock, &mock_pipe) == 0, "Failed to open pipe mock");
+	zassert(modem_pipe_open_sync(mock_pipe) == 0, "Failed to open mock pipe");
 
-	zassert(modem_chat_attach(&cmd, &mock_pipe) == 0,
-		"Failed to attach pipe mock to modem CMD");
+	zassert(modem_chat_attach(&cmd, mock_pipe) == 0, "Failed to attach pipe mock to modem CMD");
 
 	return NULL;
 }
@@ -230,10 +229,7 @@ static void test_modem_chat_before(void *f)
 	atomic_set(&callback_called, 0);
 
 	/* Reset mock pipe */
-	modem_pipe_mock_reset(&mock);
-
-	/* Limit read/write size */
-	modem_pipe_mock_limit_size(&mock, 8);
+	modem_backend_mock_reset(&mock);
 }
 
 static void test_modem_chat_after(void *f)
@@ -265,13 +261,13 @@ ZTEST(modem_chat, script_no_error)
 	 * Modem responds "OK\r\n"
 	 */
 
-	modem_pipe_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
+	modem_backend_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
 
 	zassert_true(memcmp(buffer, "AT\r", sizeof("AT\r") - 1) == 0,
 		     "Request not sent as expected");
 
-	modem_pipe_mock_put(&mock, at_response, sizeof(at_response) - 1);
-	modem_pipe_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
+	modem_backend_mock_put(&mock, at_response, sizeof(at_response) - 1);
+	modem_backend_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
 	k_msleep(100);
 
 	/*
@@ -279,12 +275,12 @@ ZTEST(modem_chat, script_no_error)
 	 * Modem responds "OK\r\n"
 	 */
 
-	modem_pipe_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
+	modem_backend_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
 
 	zassert_true(memcmp(buffer, "ATE0\r\n", sizeof("ATE0\r\n") - 1) == 0,
 		     "Request not sent as expected");
 
-	modem_pipe_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
+	modem_backend_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
 	k_msleep(100);
 
 	/*
@@ -293,13 +289,13 @@ ZTEST(modem_chat, script_no_error)
 	 * Modem responds "OK\r\n"
 	 */
 
-	modem_pipe_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
+	modem_backend_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
 
 	zassert_true(memcmp(buffer, "IMEI?\r\n", sizeof("IMEI?\r\n") - 1) == 0,
 		     "Request not sent as expected");
 
-	modem_pipe_mock_put(&mock, imei_response, sizeof(imei_response) - 1);
-	modem_pipe_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
+	modem_backend_mock_put(&mock, imei_response, sizeof(imei_response) - 1);
+	modem_backend_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
 	k_msleep(100);
 
 	zassert_true(atomic_test_bit(&callback_called, MODEM_CHAT_UTEST_ON_IMEI_CALLED_BIT) == true,
@@ -319,13 +315,13 @@ ZTEST(modem_chat, script_no_error)
 	 * Modem responds "OK\r\n"
 	 */
 
-	modem_pipe_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
+	modem_backend_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
 
 	zassert_true(memcmp(buffer, "AT+CREG?;+CGREG?\r\n", sizeof("AT+CREG?;+CGREG?\r\n") - 1) ==
 			     0,
 		     "Request not sent as expected");
 
-	modem_pipe_mock_put(&mock, creg_response, sizeof(creg_response) - 1);
+	modem_backend_mock_put(&mock, creg_response, sizeof(creg_response) - 1);
 	k_msleep(100);
 
 	zassert_true(memcmp(argv_buffers[0], "CREG: ", sizeof("CREG: ")) == 0, "Unexpected argv");
@@ -336,7 +332,7 @@ ZTEST(modem_chat, script_no_error)
 
 	zassert_true(argc_buffers == 3, "Unexpected argc");
 
-	modem_pipe_mock_put(&mock, cgreg_response, sizeof(cgreg_response) - 1);
+	modem_backend_mock_put(&mock, cgreg_response, sizeof(cgreg_response) - 1);
 	k_msleep(100);
 
 	zassert_true(memcmp(argv_buffers[0], "CGREG: ", sizeof("CGREG: ")) == 0, "Unexpected argv");
@@ -347,7 +343,7 @@ ZTEST(modem_chat, script_no_error)
 
 	zassert_true(argc_buffers == 3, "Unexpected argc");
 
-	modem_pipe_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
+	modem_backend_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
 	k_msleep(100);
 
 	/*
@@ -356,14 +352,14 @@ ZTEST(modem_chat, script_no_error)
 	 * Modem responds "OK\r\n"
 	 */
 
-	modem_pipe_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
+	modem_backend_mock_get(&mock, buffer, ARRAY_SIZE(buffer));
 
 	zassert_true(memcmp(buffer, "AT+QENG=\"servingcell\"\r\n",
 			    sizeof("AT+QENG=\"servingcell\"\r\n") - 1) == 0,
 		     "Request not sent as expected");
 
-	modem_pipe_mock_put(&mock, qeng_servinc_cell_response,
-			    sizeof(qeng_servinc_cell_response) - 1);
+	modem_backend_mock_put(&mock, qeng_servinc_cell_response,
+			       sizeof(qeng_servinc_cell_response) - 1);
 
 	k_msleep(100);
 
@@ -387,7 +383,7 @@ ZTEST(modem_chat, script_no_error)
 	called = atomic_test_bit(&callback_called, MODEM_CHAT_UTEST_ON_SCRIPT_CALLBACK_BIT);
 	zassert_true(called == false, "Script callback should not have been called yet");
 
-	modem_pipe_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
+	modem_backend_mock_put(&mock, ok_response, sizeof(ok_response) - 1);
 	k_msleep(100);
 
 	called = atomic_test_bit(&callback_called, MODEM_CHAT_UTEST_ON_SCRIPT_CALLBACK_BIT);

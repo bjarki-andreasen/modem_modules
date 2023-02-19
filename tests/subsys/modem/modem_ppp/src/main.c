@@ -16,7 +16,7 @@
 #include <string.h>
 
 #include <zephyr/modem/modem_ppp.h>
-#include <modem_pipe_mock.h>
+#include <modem_backend_mock.h>
 
 #define TEST_MODEM_PPP_BUF_SIZE		     (16)
 #define TEST_MODEM_PPP_TX_PKT_BUF_SIZE	     (5)
@@ -26,11 +26,10 @@
 /*************************************************************************************************/
 /*                                          Mock pipe                                            */
 /*************************************************************************************************/
-static struct modem_pipe_mock mock;
+static struct modem_backend_mock mock;
 static uint8_t mock_rx_buf[TEST_MODEM_PPP_MOCK_PIPE_RX_BUF_SIZE];
 static uint8_t mock_tx_buf[TEST_MODEM_PPP_MOCK_PIPE_TX_BUF_SIZE];
-
-static struct modem_pipe mock_pipe;
+static struct modem_pipe *mock_pipe;
 
 /*************************************************************************************************/
 /*                                         PPP frames                                            */
@@ -152,20 +151,19 @@ static void *test_modem_ppp_setup(void)
 
 	net_if_flag_set(modem_ppp_get_iface(&ppp), NET_IF_UP);
 
-	const struct modem_pipe_mock_config mock_config = {
+	const struct modem_backend_mock_config mock_config = {
 		.rx_buf = mock_rx_buf,
 		.rx_buf_size = sizeof(mock_rx_buf),
 		.tx_buf = mock_tx_buf,
 		.tx_buf_size = sizeof(mock_tx_buf),
+		.limit = 8,
 	};
 
-	zassert_true(modem_pipe_mock_init(&mock, &mock_config) == 0,
-		     "Failed to init modem pipe mock");
+	mock_pipe = modem_backend_mock_init(&mock, &mock_config);
 
-	zassert_true(modem_pipe_mock_open(&mock, &mock_pipe) == 0, "Failed to open pipe mock");
+	zassert_true(modem_pipe_open_sync(mock_pipe) == 0, "Failed to open mock pipe");
 
-	zassert_true(modem_ppp_attach(&ppp, &mock_pipe) == 0,
-		     "Failed to attach pipe mock to modem ppp");
+	modem_ppp_attach(&ppp, mock_pipe);
 
 	return NULL;
 }
@@ -181,10 +179,7 @@ static void test_modem_ppp_before(void *f)
 	received_packets_len = 0;
 
 	/* Reset mock pipe */
-	modem_pipe_mock_reset(&mock);
-
-	/* Limit read/write size */
-	modem_pipe_mock_limit_size(&mock, 8);
+	modem_backend_mock_reset(&mock);
 }
 
 ZTEST(modem_ppp, ppp_frame_receive)
@@ -193,7 +188,7 @@ ZTEST(modem_ppp, ppp_frame_receive)
 	size_t pkt_len;
 
 	/* Put wrapped frame */
-	modem_pipe_mock_put(&mock, ppp_frame_wrapped, sizeof(ppp_frame_wrapped));
+	modem_backend_mock_put(&mock, ppp_frame_wrapped, sizeof(ppp_frame_wrapped));
 
 	/* Give modem ppp time to process received frame */
 	k_msleep(1000);
@@ -221,8 +216,8 @@ ZTEST(modem_ppp, corrupt_start_end_ppp_frame_receive)
 	size_t pkt_len;
 
 	/* Put wrapped frame */
-	modem_pipe_mock_put(&mock, corrupt_start_end_ppp_frame_wrapped,
-			    sizeof(corrupt_start_end_ppp_frame_wrapped));
+	modem_backend_mock_put(&mock, corrupt_start_end_ppp_frame_wrapped,
+			       sizeof(corrupt_start_end_ppp_frame_wrapped));
 
 	/* Give modem ppp time to process received frame */
 	k_msleep(1000);
@@ -270,7 +265,7 @@ ZTEST(modem_ppp, ppp_frame_send)
 	k_msleep(1000);
 
 	/* Get any sent data */
-	ret = modem_pipe_mock_get(&mock, buffer, sizeof(buffer));
+	ret = modem_backend_mock_get(&mock, buffer, sizeof(buffer));
 
 	zassert_true(ret == sizeof(ppp_frame_wrapped), "Wrapped frame length incorrect");
 
@@ -284,7 +279,7 @@ ZTEST(modem_ppp, ip_frame_receive)
 	size_t pkt_len;
 
 	/* Put wrapped frame */
-	modem_pipe_mock_put(&mock, ip_frame_wrapped, sizeof(ip_frame_wrapped));
+	modem_backend_mock_put(&mock, ip_frame_wrapped, sizeof(ip_frame_wrapped));
 
 	/* Give modem ppp time to process received frame */
 	k_msleep(1000);
@@ -332,7 +327,7 @@ ZTEST(modem_ppp, ip_frame_send)
 	k_msleep(100);
 
 	/* Get any sent data */
-	ret = modem_pipe_mock_get(&mock, buffer, sizeof(buffer));
+	ret = modem_backend_mock_get(&mock, buffer, sizeof(buffer));
 
 	zassert_true(ret == sizeof(ip_frame_wrapped), "Wrapped frame length incorrect");
 
@@ -369,7 +364,7 @@ ZTEST(modem_ppp, ip_frame_send_multiple)
 
 	k_msleep(100);
 
-	ret = modem_pipe_mock_get(&mock, buffer, TEST_MODEM_PPP_MOCK_PIPE_RX_BUF_SIZE);
+	ret = modem_backend_mock_get(&mock, buffer, TEST_MODEM_PPP_MOCK_PIPE_RX_BUF_SIZE);
 
 	zassert_true(ret == (sizeof(ip_frame_wrapped) * MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N),
 		     "Incorrect data amount received");

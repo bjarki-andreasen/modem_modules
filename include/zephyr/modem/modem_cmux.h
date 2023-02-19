@@ -22,6 +22,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/types.h>
 #include <zephyr/sys/ring_buffer.h>
+#include <zephyr/sys/atomic.h>
 
 #include <zephyr/modem/modem_pipe.h>
 
@@ -30,28 +31,20 @@
 
 struct modem_cmux;
 
-enum modem_cmux_event_type {
+enum modem_cmux_state {
+	MODEM_CMUX_STATE_DISCONNECTED = 0,
+	MODEM_CMUX_STATE_CONNECTING,
+	MODEM_CMUX_STATE_CONNECTED,
+	MODEM_CMUX_STATE_DISCONNECTING,
+};
+
+enum modem_cmux_event {
 	MODEM_CMUX_EVENT_CONNECTED = 0,
 	MODEM_CMUX_EVENT_DISCONNECTED,
-	MODEM_CMUX_EVENT_OPENED,
-	MODEM_CMUX_EVENT_CLOSED,
-	MODEM_CMUX_EVENT_MODEM_STATUS,
 };
 
-struct modem_cmux_event {
-	uint16_t dlci_address;
-	enum modem_cmux_event_type type;
-};
-
-typedef void (*modem_cmux_callback)(struct modem_cmux *cmux, struct modem_cmux_event event,
+typedef void (*modem_cmux_callback)(struct modem_cmux *cmux, enum modem_cmux_event event,
 				    void *user_data);
-
-enum modem_cmux_dlci_state {
-	MODEM_CMUX_DLCI_STATE_CLOSED = 0,
-	MODEM_CMUX_DLCI_STATE_OPENING,
-	MODEM_CMUX_DLCI_STATE_OPEN,
-	MODEM_CMUX_DLCI_STATE_CLOSING,
-};
 
 enum modem_cmux_receive_state {
 	MODEM_CMUX_RECEIVE_STATE_SOF = 0,
@@ -66,24 +59,49 @@ enum modem_cmux_receive_state {
 	MODEM_CMUX_RECEIVE_STATE_LENGTH_CONT,
 	MODEM_CMUX_RECEIVE_STATE_DATA,
 	MODEM_CMUX_RECEIVE_STATE_FCS,
+	MODEM_CMUX_RECEIVE_STATE_DROP,
 	MODEM_CMUX_RECEIVE_STATE_EOF,
 };
 
+enum modem_cmux_dlci_state {
+	MODEM_CMUX_DLCI_STATE_CLOSED,
+	MODEM_CMUX_DLCI_STATE_OPENING,
+	MODEM_CMUX_DLCI_STATE_OPEN,
+	MODEM_CMUX_DLCI_STATE_CLOSING,
+};
+
+enum modem_cmux_dlci_event {
+	MODEM_CMUX_DLCI_EVENT_OPENED,
+	MODEM_CMUX_DLCI_EVENT_CLOSED,
+};
+
+struct modem_cmux_dlci;
+
+struct modem_cmux_dlci_work {
+	struct k_work work;
+	struct modem_cmux_dlci *dlci;
+};
+
 struct modem_cmux_dlci {
-	/* Configuration */
+	sys_snode_t node;
+
+	/* Pipe */
+	struct modem_pipe pipe;
+
+	/* Context */
 	uint16_t dlci_address;
 	struct modem_cmux *cmux;
-	struct modem_pipe *pipe;
-	modem_pipe_callback pipe_callback;
-	void *pipe_callback_user_data;
 
 	/* Receive buffer */
 	struct ring_buf receive_rb;
 	struct k_mutex receive_rb_lock;
 
+	/* Work */
+	struct modem_cmux_dlci_work open_work;
+	struct modem_cmux_dlci_work close_work;
+
 	/* State */
 	enum modem_cmux_dlci_state state;
-	bool allocated;
 };
 
 struct modem_cmux_frame {
@@ -93,13 +111,6 @@ struct modem_cmux_frame {
 	uint8_t type;
 	const uint8_t *data;
 	uint16_t data_len;
-};
-
-enum modem_cmux_state {
-	MODEM_CMUX_STATE_DISCONNECTED = 0,
-	MODEM_CMUX_STATE_CONNECTING,
-	MODEM_CMUX_STATE_CONNECTED,
-	MODEM_CMUX_STATE_DISCONNECTING,
 };
 
 struct modem_cmux_work {
@@ -120,14 +131,10 @@ struct modem_cmux {
 	modem_cmux_callback callback;
 	void *user_data;
 
-	/* Synchronization */
-	struct k_mutex lock;
-
 	/* DLCI channel contexts */
-	struct modem_cmux_dlci *dlcis;
-	uint16_t dlcis_size;
+	sys_slist_t dlcis;
 
-	/* Status */
+	/* State */
 	enum modem_cmux_state state;
 
 	/* Receive state*/
@@ -148,38 +155,61 @@ struct modem_cmux {
 	uint16_t frame_header_len;
 
 	/* Work */
-	struct modem_cmux_work_delayable process_received;
-	k_timeout_t receive_timeout;
-
+	struct modem_cmux_work receive_work;
 	struct modem_cmux_work transmit_work;
+	struct modem_cmux_work connect_work;
+	struct modem_cmux_work disconnect_work;
 };
 
 /**
  * @brief Contains CMUX instance confuguration data
  * @param callback Invoked when event occurs
  * @param user_data Free to use pointer passed to event handler when invoked
- * @param dlcis Array of DLCI channel contexts used internally
- * @param dlcis_size Length of array of DLCI channel contexts
  * @param receive_buf Receive buffer
  * @param receive_buf_size Sice of receive buffer in bytes
+ * @param transmit_buf Transmit buffer
+ * @param transmit_buf_size Sice of ransmit buffer in bytes
  * @param receive_timeout Timeout from data is received until data is read
  */
 struct modem_cmux_config {
 	modem_cmux_callback callback;
 	void *user_data;
-	struct modem_cmux_dlci *dlcis;
-	uint16_t dlcis_size;
 	uint8_t *receive_buf;
 	uint16_t receive_buf_size;
 	uint8_t *transmit_buf;
 	uint16_t transmit_buf_size;
-	k_timeout_t receive_timeout;
 };
 
 /**
  * @brief Initialize CMUX instance
  */
-int modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *config);
+void modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *config);
+
+/**
+ * @brief CMUX DLCI configuration
+ * @param dlci_address DLCI channel address
+ * @param receive_buf Receive buffer used by pipe
+ * @param receive_buf_size Size of receive buffer used by pipe
+ */
+struct modem_cmux_dlci_config {
+	uint8_t dlci_address;
+	uint8_t *receive_buf;
+	uint16_t receive_buf_size;
+};
+
+/**
+ * @brief Initialize DLCI instance and register it with CMUX instance
+ * @param cmux CMUX instance
+ * @param dlci DLCI instance
+ * @param config DLCI configuration
+ */
+struct modem_pipe *modem_cmux_dlci_init(struct modem_cmux *cmux, struct modem_cmux_dlci *dlci,
+					const struct modem_cmux_dlci_config *config);
+
+/**
+ * @brief Initialize CMUX instance
+ */
+int modem_cmux_attach(struct modem_cmux *cmux, struct modem_pipe *pipe);
 
 /**
  * @brief Connect CMUX instance
@@ -189,35 +219,7 @@ int modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *con
  * @param pipe pipe used to transmit data to and from bus
  * @note When connected, the bus pipe must not be used directly
  */
-int modem_cmux_connect(struct modem_cmux *cmux, struct modem_pipe *pipe);
-
-/**
- * @brief CMUX DLCI configuration
- * @param dlci_address DLCI channel address
- * @param receive_buf Receive buffer used by pipe
- * @param receive_buf_size Size of receive buffer used by pipe
- * @param transmit_buf Transmit buffer used by pipe
- * @param transmit_buf_size Size of transmit buffer used by pipe
- */
-struct modem_cmux_dlci_config {
-	uint16_t dlci_address;
-	uint8_t *receive_buf;
-	uint16_t receive_buf_size;
-};
-
-/**
- * @brief Open DLCI channel on connected CMUX instance
- * @param cmux CMUX instance
- * @param config CMUX DLCI channel configuration
- * @param pipe Pipe context
- */
-int modem_cmux_dlci_open(struct modem_cmux *cmux, const struct modem_cmux_dlci_config *config,
-			 struct modem_pipe *pipe);
-
-/**
- * @brief Close DLCI channel on connected CMUX instance
- */
-int modem_cmux_dlci_close(struct modem_pipe *pipe);
+int modem_cmux_connect(struct modem_cmux *cmux);
 
 /**
  * @brief Close down and disconnect CMUX instance
@@ -225,5 +227,7 @@ int modem_cmux_dlci_close(struct modem_pipe *pipe);
  * @note When disconnected, the bus pipe can be used directly again
  */
 int modem_cmux_disconnect(struct modem_cmux *cmux);
+
+void modem_cmux_release(struct modem_cmux *cmux);
 
 #endif /* ZEPHYR_DRIVERS_MODEM_MODEM_CMUX */

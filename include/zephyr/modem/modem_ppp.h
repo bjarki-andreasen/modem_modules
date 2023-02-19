@@ -113,13 +113,6 @@ int modem_ppp_attach(struct modem_ppp *ppp, struct modem_pipe *pipe);
 struct net_if *modem_ppp_get_iface(struct modem_ppp *ppp);
 
 /**
- * @brief Terminate PPP connection
- *
- * @param ppp Modem PPP instance
- */
-int modem_ppp_stop(struct modem_ppp *ppp);
-
-/**
  * @brief Release pipe from instance
  *
  * @param ppp Modem PPP instance

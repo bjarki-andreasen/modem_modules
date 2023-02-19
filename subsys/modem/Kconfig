@@ -6,22 +6,29 @@ menuconfig MODEM_MODULES
 
 if MODEM_MODULES
 
+config MODEM_BACKEND_UART
+	bool "Modem UART backend module"
+	select MODEM_PIPE
+	depends on SERIAL_SUPPORT_INTERRUPT
+
 config MODEM_CHAT
 	bool "Modem chat module"
 	select RING_BUFFER
+	select MODEM_PIPE
 
 config MODEM_CMUX
 	bool "Modem CMUX module"
+	select MODEM_PIPE
 	select RING_BUFFER
 	select EVENTS
+
+config MODEM_PIPE
+	bool "Modem pipe module"
 
 config MODEM_PPP
 	bool "Modem PPP module"
 	depends on NET_L2_PPP
+	select MODEM_PIPE
 	select RING_BUFFER
-
-config MODEM_PIPE_UART
-	bool "Modem pipe to UART module"
-	depends on SERIAL_SUPPORT_INTERRUPT
 
 endif

@@ -12,7 +12,7 @@
 #include <zephyr/modem/modem_cmux.h>
 #include <zephyr/modem/modem_pipe.h>
 #include <zephyr/modem/modem_ppp.h>
-#include <zephyr/modem/modem_pipe_uart.h>
+#include <zephyr/modem/modem_backend_uart.h>
 #include <zephyr/net/ppp.h>
 #include <zephyr/pm/device.h>
 #include <zephyr/drivers/gpio.h>
@@ -46,22 +46,18 @@ const struct device *modem_uart = DEVICE_DT_GET(DT_ALIAS(modem_uart));
 #define SAMPLE_EVENT_CMUX_DISCONNECTED	 BIT(8)
 #define SAMPLE_EVENT_NET_L4_CONNECTED	 BIT(9)
 #define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
+#define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
+#define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
 
 static struct k_event sample_event;
 
 /*************************************************************************************************/
-/*                                          Modem pipes                                          */
-/*************************************************************************************************/
-static struct modem_pipe bus_pipe;
-static struct modem_pipe dlci1_pipe;
-static struct modem_pipe dlci2_pipe;
-
-/*************************************************************************************************/
 /*                                        Modem pipe UART                                        */
 /*************************************************************************************************/
-static struct modem_pipe_uart pipe_uart;
-static uint8_t pipe_uart_rx_buf[256];
-static uint8_t pipe_uart_tx_buf[256];
+static struct modem_backend_uart uart_backend;
+static uint8_t backend_uart_rx_buf[256];
+static uint8_t backend_uart_tx_buf[256];
+static struct modem_pipe *uart_pipe;
 
 /*************************************************************************************************/
 /*                                         Modem CMUX                                            */
@@ -69,46 +65,24 @@ static uint8_t pipe_uart_tx_buf[256];
 static struct modem_cmux cmux;
 static uint8_t cmux_receive_buf[128];
 static uint8_t cmux_transmit_buf[256];
-static struct modem_cmux_dlci dlcis[2];
+static struct modem_cmux_dlci dlci1;
+static struct modem_cmux_dlci dlci2;
+static struct modem_pipe *dlci1_pipe;
+static struct modem_pipe *dlci2_pipe;
 
 static uint8_t dlci1_receive_buf[128];
 static uint8_t dlci2_receive_buf[128];
 
-static void modem_cmux_callback_handler(struct modem_cmux *cmux, struct modem_cmux_event event,
+static void modem_cmux_callback_handler(struct modem_cmux *cmux, enum modem_cmux_event event,
 					void *user_data)
 {
-	switch (event.type) {
+	switch (event) {
 	case MODEM_CMUX_EVENT_CONNECTED:
 		k_event_post(&sample_event, SAMPLE_EVENT_CMUX_CONNECTED);
 		break;
 
-	case MODEM_CMUX_EVENT_OPENED:
-		if (event.dlci_address == 1) {
-			k_event_post(&sample_event, SAMPLE_EVENT_CMUX_DLCI1_OPENED);
-		}
-
-		if (event.dlci_address == 2) {
-			k_event_post(&sample_event, SAMPLE_EVENT_CMUX_DLCI2_OPENED);
-		}
-
-		break;
-
-	case MODEM_CMUX_EVENT_CLOSED:
-		if (event.dlci_address == 1) {
-			k_event_post(&sample_event, SAMPLE_EVENT_CMUX_DLCI1_CLOSED);
-		}
-
-		if (event.dlci_address == 2) {
-			k_event_post(&sample_event, SAMPLE_EVENT_CMUX_DLCI2_CLOSED);
-		}
-
-		break;
-
 	case MODEM_CMUX_EVENT_DISCONNECTED:
 		k_event_post(&sample_event, SAMPLE_EVENT_CMUX_DISCONNECTED);
-		break;
-
-	default:
 		break;
 	}
 }
@@ -191,7 +165,6 @@ MODEM_CHAT_MATCHES_DEFINE(abort_matches, MODEM_CHAT_MATCH("ERROR", "", NULL),
 /*************************************************************************************************/
 /*                                    Chat script callback                                       */
 /*************************************************************************************************/
-
 static void modem_chat_callback_handler(struct modem_chat *chat,
 					enum modem_chat_script_result result, void *user_data)
 {
@@ -327,15 +300,17 @@ void main(void)
 	 * Initialize the modem pipe to UART module. This pipe is used to send raw data to the
 	 * cellular modem using the UART.
 	 */
-	const struct modem_pipe_uart_config pipe_uart_config = {
+	const struct modem_backend_uart_config backend_uart_config = {
 		.uart = modem_uart,
-		.rx_buf = pipe_uart_rx_buf,
-		.rx_buf_size = ARRAY_SIZE(pipe_uart_rx_buf),
-		.tx_buf = pipe_uart_tx_buf,
-		.tx_buf_size = ARRAY_SIZE(pipe_uart_tx_buf),
+		.rx_buf = backend_uart_rx_buf,
+		.rx_buf_size = ARRAY_SIZE(backend_uart_rx_buf),
+		.tx_buf = backend_uart_tx_buf,
+		.tx_buf_size = ARRAY_SIZE(backend_uart_tx_buf),
 	};
 
-	ret = modem_pipe_uart_init(&pipe_uart, &pipe_uart_config);
+	uart_pipe = modem_backend_uart_init(&uart_backend, &backend_uart_config);
+
+	ret = modem_pipe_open_sync(uart_pipe);
 	if (ret < 0) {
 		return;
 	}
@@ -348,19 +323,30 @@ void main(void)
 	const struct modem_cmux_config cmux_config = {
 		.callback = modem_cmux_callback_handler,
 		.user_data = NULL,
-		.dlcis = dlcis,
-		.dlcis_size = ARRAY_SIZE(dlcis),
 		.receive_buf = cmux_receive_buf,
 		.receive_buf_size = ARRAY_SIZE(cmux_receive_buf),
 		.transmit_buf = cmux_transmit_buf,
 		.transmit_buf_size = ARRAY_SIZE(cmux_transmit_buf),
-		.receive_timeout = K_MSEC(3),
 	};
 
-	ret = modem_cmux_init(&cmux, &cmux_config);
-	if (ret < 0) {
-		return;
-	}
+	/* Initialize DLCI channels */
+	const struct modem_cmux_dlci_config dlci1_config = {
+		.dlci_address = 1,
+		.receive_buf = dlci1_receive_buf,
+		.receive_buf_size = ARRAY_SIZE(dlci1_receive_buf),
+	};
+
+	const struct modem_cmux_dlci_config dlci2_config = {
+		.dlci_address = 2,
+		.receive_buf = dlci2_receive_buf,
+		.receive_buf_size = ARRAY_SIZE(dlci2_receive_buf),
+	};
+
+	modem_cmux_init(&cmux, &cmux_config);
+
+	dlci1_pipe = modem_cmux_dlci_init(&cmux, &dlci1, &dlci1_config);
+
+	dlci2_pipe = modem_cmux_dlci_init(&cmux, &dlci2, &dlci2_config);
 
 	/*
 	 * Initialize the modem chat module. Chat scripts are executed using this module. A chat
@@ -394,14 +380,8 @@ void main(void)
 	pm_device_action_run(modem_uart, PM_DEVICE_ACTION_RESUME);
 	*/
 
-	/* Open bus pipe using modem pipe UART module */
-	ret = modem_pipe_uart_open(&pipe_uart, &bus_pipe);
-	if (ret < 0) {
-		return;
-	}
-
 	/* Attach modem chat module to bus pipe */
-	ret = modem_chat_attach(&chat, &bus_pipe);
+	ret = modem_chat_attach(&chat, uart_pipe);
 	if (ret < 0) {
 		return;
 	}
@@ -431,8 +411,13 @@ void main(void)
 	/* Give modem time to enter CMUX mode */
 	k_msleep(300);
 
+	ret = modem_cmux_attach(&cmux, uart_pipe);
+	if (ret < 0) {
+		return;
+	}
+
 	/* Attach CMUX module to bus pipe which is now in CMUX mode and set up CMUX */
-	ret = modem_cmux_connect(&cmux, &bus_pipe);
+	ret = modem_cmux_connect(&cmux);
 	if (ret < 0) {
 		return;
 	}
@@ -444,44 +429,26 @@ void main(void)
 
 	printk("CMUX connected\n");
 
-	/* Open DLCI channels */
-	const struct modem_cmux_dlci_config dlci1_config = {
-		.dlci_address = 1,
-		.receive_buf = dlci1_receive_buf,
-		.receive_buf_size = ARRAY_SIZE(dlci1_receive_buf),
-	};
-
-	const struct modem_cmux_dlci_config dlci2_config = {
-		.dlci_address = 2,
-		.receive_buf = dlci2_receive_buf,
-		.receive_buf_size = ARRAY_SIZE(dlci2_receive_buf),
-	};
-
-	ret = modem_cmux_dlci_open(&cmux, &dlci1_config, &dlci1_pipe);
+	/* Open CMUX channels */
+	ret = modem_pipe_open_sync(dlci1_pipe);
 	if (ret < 0) {
 		return;
 	}
 
-	ret = modem_cmux_dlci_open(&cmux, &dlci2_config, &dlci2_pipe);
+	ret = modem_pipe_open_sync(dlci2_pipe);
 	if (ret < 0) {
 		return;
 	}
 
-	/* Wait for DLCI channels opened */
-	result = event_wait_all((SAMPLE_EVENT_CMUX_DLCI1_OPENED | SAMPLE_EVENT_CMUX_DLCI2_OPENED),
-				false);
-
-	if (result == false) {
-		return;
-	}
-
-	printk("DLCI channels opened\n");
+	printk("Opened DLCI CMUX channels\n");
 
 	/* Attach modem chat module to DLCI channel 2 */
-	ret = modem_chat_attach(&chat, &dlci2_pipe);
+	ret = modem_chat_attach(&chat, dlci2_pipe);
 	if (ret < 0) {
 		return;
 	}
+
+	printk("Chat connected to DLCI2\n");
 
 	chat_script_reset();
 
@@ -502,17 +469,26 @@ void main(void)
 		return;
 	}
 
+	k_msleep(500);
+
+	printk("Chat disconnected\n");
+
 	/* Attach modem chat module to DLCI channel 1 */
-	ret = modem_chat_attach(&chat, &dlci1_pipe);
+	ret = modem_chat_attach(&chat, dlci1_pipe);
 	if (ret < 0) {
 		return;
 	}
 
 	/* Attach modem PPP module to DLCI channel 2 which is now in PPP mode */
-	ret = modem_ppp_attach(&ppp, &dlci2_pipe);
+	ret = modem_ppp_attach(&ppp, dlci2_pipe);
 	if (ret < 0) {
 		return;
 	}
+
+	k_msleep(500);
+
+	printk("Chat connected to DLCI1\n");
+	printk("PPP connected to DLCI2\n");
 
 	/* Wait for cellular modem registered to network */
 	while (1) {
@@ -539,6 +515,8 @@ void main(void)
 		k_msleep(5000);
 	}
 
+	printk("Bringing up network\n");
+
 	/* Bring up PPP network interface */
 	net_ppp_carrier_on(modem_ppp_get_iface(&ppp));
 
@@ -561,7 +539,9 @@ void main(void)
 
 	printk("Network L4 disconnected\n");
 
-	k_msleep(1000);
+	k_msleep(500);
+
+	printk("Releasing chat and PPP\n");
 
 	/* Release modem chat module from DLCI channel 1 */
 	ret = modem_chat_release(&chat);
@@ -575,10 +555,29 @@ void main(void)
 		return;
 	}
 
+	printk("Closing DLCI 1 and 2\n");
+
+	/* Close CMUX channels */
+	ret = modem_pipe_close_sync(dlci1_pipe);
+	if (ret < 0) {
+		return;
+	}
+
+	ret = modem_pipe_close_sync(dlci2_pipe);
+	if (ret < 0) {
+		return;
+	}
+
+	k_msleep(500);
+
+	printk("Disconnecting CMUX\n");
+
 	/* Disconnect CMUX module */
 	modem_cmux_disconnect(&cmux);
 
-	printk("CMUX disconnected\n");
+	k_msleep(500);
+
+	modem_cmux_release(&cmux);
 
 	printk("Sample complete\n");
 }

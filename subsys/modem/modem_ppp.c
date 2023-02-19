@@ -527,17 +527,9 @@ const struct ppp_api modem_ppp_ppp_api = {
 
 int modem_ppp_attach(struct modem_ppp *ppp, struct modem_pipe *pipe)
 {
-	int ret;
+	modem_pipe_attach(pipe, modem_ppp_pipe_callback, ppp);
 
 	ppp->pipe = pipe;
-
-	ret = modem_pipe_callback_set(pipe, modem_ppp_pipe_callback, ppp);
-
-	if (ret < 0) {
-		ppp->pipe = NULL;
-
-		return ret;
-	}
 
 	return 0;
 }
@@ -552,12 +544,12 @@ int modem_ppp_release(struct modem_ppp *ppp)
 	struct k_work_sync sync;
 	struct net_pkt *pkt;
 
-	modem_pipe_callback_set(ppp->pipe, NULL, NULL);
+	modem_pipe_release(ppp->pipe);
+
+	ppp->pipe = NULL;
 
 	k_work_cancel_sync(&ppp->send_work.work, &sync);
 	k_work_cancel_sync(&ppp->process_work.work, &sync);
-
-	ppp->pipe = NULL;
 
 	if (ppp->pkt != NULL) {
 		net_pkt_unref(ppp->pkt);

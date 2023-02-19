@@ -38,7 +38,8 @@ struct quectel_bgxx_config {
 /************************************************************************
  * Instance data struct
  ************************************************************************/
-struct quectel_bgxx_data {};
+struct quectel_bgxx_data {
+};
 
 static int wrap_uart_quectel_bgxx_poll_in(const struct device *dev, unsigned char *c)
 {
@@ -56,13 +57,14 @@ static void wrap_uart_quectel_bgxx_poll_out(const struct device *dev, unsigned c
 static int wrap_uart_quectel_bgxx_uart_configure(const struct device *dev,
 						 const struct uart_config *uart_cfg)
 {
-	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;	
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
 	return uart_configure(cfg->uart_dev, uart_cfg);
 }
 
-static int wrap_uart_quectel_bgxx_uart_config_get(const struct device *dev, struct uart_config *uart_cfg)
+static int wrap_uart_quectel_bgxx_uart_config_get(const struct device *dev,
+						  struct uart_config *uart_cfg)
 {
-	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;	
+	struct quectel_bgxx_config *cfg = (struct quectel_bgxx_config *)dev->config;
 	return uart_config_get(cfg->uart_dev, uart_cfg);
 }
 #endif
@@ -170,12 +172,12 @@ static const struct uart_driver_api quectel_bgxx_uart_api = {
 
 static int quectel_bgxx_init(const struct device *dev)
 {
-	//struct quectel_bgxx_config *data = (struct quectel_bgxx_config *)dev->config;
+	// struct quectel_bgxx_config *data = (struct quectel_bgxx_config *)dev->config;
 
 	return 0;
 }
 
-//Disable part for PM -> it causes system to crash now, seems issue with uart
+// Disable part for PM -> it causes system to crash now, seems issue with uart
 #if 0
 /* Enter section in which cellular state is accessed or altered */
 static void quectel_bgxx_state_section_enter(struct quectel_bgxx_data *bgxx_data)
@@ -270,7 +272,7 @@ static int quectel_bgxx_pm_action(const struct device *dev, enum pm_device_actio
 
 #define BGXX_DEVICE(node_id)                                                                       \
 	static struct quectel_bgxx_config quectel_bgxx_config_##node_id = {                        \
-		.uart_dev = DEVICE_DT_GET(DT_BUS(node_id)),                                            \
+		.uart_dev = DEVICE_DT_GET(DT_BUS(node_id)),                                        \
 	};                                                                                         \
                                                                                                    \
 	static struct quectel_bgxx_data quectel_bgxx_data_##node_id = {};                          \
