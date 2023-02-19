@@ -19,6 +19,7 @@ LOG_MODULE_REGISTER(modem_cmux);
 #define MODEM_CMUX_CR		  (0x02)
 #define MODEM_CMUX_PF		  (0x10)
 #define MODEM_CMUX_FRAME_SIZE_MAX (0X08)
+#define MODEM_CMUX_T1_TIMEOUT	  (K_MSEC(330))
 
 enum modem_cmux_frame_types {
 	MODEM_CMUX_FRAME_TYPE_RR = 0x01,
@@ -119,7 +120,7 @@ static void modem_cmux_bus_callback(struct modem_pipe *pipe, enum modem_pipe_eve
 	struct modem_cmux *cmux = (struct modem_cmux *)user_data;
 
 	if (event == MODEM_PIPE_EVENT_RECEIVE_READY) {
-		k_work_submit(&cmux->receive_work.work);
+		k_work_schedule(&cmux->receive_work.dwork, K_NO_WAIT);
 	}
 }
 
@@ -209,7 +210,7 @@ static uint16_t modem_cmux_transmit_frame(struct modem_cmux *cmux,
 
 	k_mutex_unlock(&cmux->transmit_rb_lock);
 
-	k_work_submit(&cmux->transmit_work.work);
+	k_work_schedule(&cmux->transmit_work.dwork, K_NO_WAIT);
 
 	return data_len;
 }
@@ -253,6 +254,8 @@ static void modem_cmux_on_cld_command(struct modem_cmux *cmux)
 
 	cmux->state = MODEM_CMUX_STATE_DISCONNECTED;
 
+	k_work_cancel_delayable(&cmux->disconnect_work.dwork);
+
 	modem_cmux_raise_event(cmux, MODEM_CMUX_EVENT_DISCONNECTED);
 }
 
@@ -265,6 +268,8 @@ static void modem_cmux_on_control_frame_ua(struct modem_cmux *cmux)
 	}
 
 	cmux->state = MODEM_CMUX_STATE_CONNECTED;
+
+	k_work_cancel_delayable(&cmux->connect_work.dwork);
 
 	modem_cmux_raise_event(cmux, MODEM_CMUX_EVENT_CONNECTED);
 }
@@ -347,12 +352,16 @@ static void modem_cmux_on_dlci_frame_ua(struct modem_cmux_dlci *dlci)
 
 		modem_pipe_notify_opened(&dlci->pipe);
 
+		k_work_cancel_delayable(&dlci->open_work.dwork);
+
 		break;
 
 	case MODEM_CMUX_DLCI_STATE_CLOSING:
 		dlci->state = MODEM_CMUX_DLCI_STATE_CLOSED;
 
 		modem_pipe_notify_closed(&dlci->pipe);
+
+		k_work_cancel_delayable(&dlci->close_work.dwork);
 
 		break;
 
@@ -657,7 +666,7 @@ static void modem_cmux_receive_handler(struct k_work *item)
 	}
 
 	/* Reschedule received work */
-	k_work_submit(&cmux->receive_work.work);
+	k_work_schedule(&cmux->receive_work.dwork, K_NO_WAIT);
 }
 
 static void modem_cmux_transmit_handler(struct k_work *item)
@@ -689,7 +698,7 @@ static void modem_cmux_transmit_handler(struct k_work *item)
 
 	/* Resubmit transmit work if data remains */
 	if (ring_buf_is_empty(&cmux->transmit_rb) == false) {
-		k_work_submit(&cmux->transmit_work.work);
+		k_work_schedule(&cmux->transmit_work.dwork, K_NO_WAIT);
 	}
 
 	k_mutex_unlock(&cmux->transmit_rb_lock);
@@ -712,6 +721,8 @@ static void modem_cmux_connect_handler(struct k_work *item)
 	};
 
 	modem_cmux_transmit_frame(cmux, &frame, false);
+
+	k_work_schedule(&cmux->connect_work.dwork, MODEM_CMUX_T1_TIMEOUT);
 }
 
 static void modem_cmux_disconnect_handler(struct k_work *item)
@@ -741,17 +752,19 @@ static void modem_cmux_disconnect_handler(struct k_work *item)
 
 	/* Transmit close down command */
 	modem_cmux_transmit_frame(cmux, &frame, false);
+
+	k_work_schedule(&cmux->disconnect_work.dwork, MODEM_CMUX_T1_TIMEOUT);
 }
 
 static int modem_cmux_dlci_pipe_api_open(void *data)
 {
 	struct modem_cmux_dlci *dlci = (struct modem_cmux_dlci *)data;
 
-	if (k_work_is_pending(&dlci->open_work.work) == true) {
+	if (k_work_delayable_is_pending(&dlci->open_work.dwork) == true) {
 		return -EBUSY;
 	}
 
-	k_work_submit(&dlci->open_work.work);
+	k_work_schedule(&dlci->open_work.dwork, K_NO_WAIT);
 
 	return 0;
 }
@@ -791,11 +804,11 @@ static int modem_cmux_dlci_pipe_api_close(void *data)
 {
 	struct modem_cmux_dlci *dlci = (struct modem_cmux_dlci *)data;
 
-	if (k_work_is_pending(&dlci->close_work.work) == true) {
+	if (k_work_delayable_is_pending(&dlci->close_work.dwork) == true) {
 		return -EBUSY;
 	}
 
-	k_work_submit(&dlci->close_work.work);
+	k_work_schedule(&dlci->close_work.dwork, K_NO_WAIT);
 
 	return 0;
 }
@@ -827,6 +840,8 @@ static void modem_cmux_dlci_open_handler(struct k_work *item)
 	};
 
 	modem_cmux_transmit_frame(dlci->cmux, &frame, false);
+
+	k_work_schedule(&dlci->open_work.dwork, MODEM_CMUX_T1_TIMEOUT);
 }
 
 static void modem_cmux_dlci_close_handler(struct k_work *item)
@@ -848,6 +863,8 @@ static void modem_cmux_dlci_close_handler(struct k_work *item)
 	};
 
 	modem_cmux_transmit_frame(cmux, &frame, true);
+
+	k_work_schedule(&dlci->close_work.dwork, MODEM_CMUX_T1_TIMEOUT);
 }
 
 static void modem_cmux_dlci_pipes_notify_closed(struct modem_cmux *cmux)
@@ -887,16 +904,16 @@ void modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *co
 	k_mutex_init(&cmux->transmit_rb_lock);
 
 	cmux->receive_work.cmux = cmux;
-	k_work_init(&cmux->receive_work.work, modem_cmux_receive_handler);
+	k_work_init_delayable(&cmux->receive_work.dwork, modem_cmux_receive_handler);
 
 	cmux->transmit_work.cmux = cmux;
-	k_work_init(&cmux->transmit_work.work, modem_cmux_transmit_handler);
+	k_work_init_delayable(&cmux->transmit_work.dwork, modem_cmux_transmit_handler);
 
 	cmux->connect_work.cmux = cmux;
-	k_work_init(&cmux->connect_work.work, modem_cmux_connect_handler);
+	k_work_init_delayable(&cmux->connect_work.dwork, modem_cmux_connect_handler);
 
 	cmux->disconnect_work.cmux = cmux;
-	k_work_init(&cmux->disconnect_work.work, modem_cmux_disconnect_handler);
+	k_work_init_delayable(&cmux->disconnect_work.dwork, modem_cmux_disconnect_handler);
 }
 
 struct modem_pipe *modem_cmux_dlci_init(struct modem_cmux *cmux, struct modem_cmux_dlci *dlci,
@@ -922,10 +939,10 @@ struct modem_pipe *modem_cmux_dlci_init(struct modem_cmux *cmux, struct modem_cm
 	modem_pipe_init(&dlci->pipe, dlci, &modem_cmux_dlci_pipe_api);
 
 	dlci->open_work.dlci = dlci;
-	k_work_init(&dlci->open_work.work, modem_cmux_dlci_open_handler);
+	k_work_init_delayable(&dlci->open_work.dwork, modem_cmux_dlci_open_handler);
 
 	dlci->close_work.dlci = dlci;
-	k_work_init(&dlci->close_work.work, modem_cmux_dlci_close_handler);
+	k_work_init_delayable(&dlci->close_work.dwork, modem_cmux_dlci_close_handler);
 
 	dlci->state = MODEM_CMUX_DLCI_STATE_CLOSED;
 
@@ -936,9 +953,6 @@ struct modem_pipe *modem_cmux_dlci_init(struct modem_cmux *cmux, struct modem_cm
 
 int modem_cmux_attach(struct modem_cmux *cmux, struct modem_pipe *pipe)
 {
-	__ASSERT_NO_MSG(cmux != NULL);
-	__ASSERT_NO_MSG(pipe != NULL);
-
 	cmux->pipe = pipe;
 
 	ring_buf_reset(&cmux->transmit_rb);
@@ -950,22 +964,22 @@ int modem_cmux_attach(struct modem_cmux *cmux, struct modem_pipe *pipe)
 
 int modem_cmux_connect(struct modem_cmux *cmux)
 {
-	if (k_work_is_pending(&cmux->connect_work.work) == true) {
+	if (k_work_delayable_is_pending(&cmux->connect_work.dwork) == true) {
 		return -EBUSY;
 	}
 
-	k_work_submit(&cmux->connect_work.work);
+	k_work_schedule(&cmux->connect_work.dwork, K_NO_WAIT);
 
 	return 0;
 }
 
 int modem_cmux_disconnect(struct modem_cmux *cmux)
 {
-	if (k_work_is_pending(&cmux->disconnect_work.work) == true) {
+	if (k_work_delayable_is_pending(&cmux->disconnect_work.dwork) == true) {
 		return -EBUSY;
 	}
 
-	k_work_submit(&cmux->disconnect_work.work);
+	k_work_schedule(&cmux->disconnect_work.dwork, K_NO_WAIT);
 
 	return 0;
 }
@@ -974,8 +988,6 @@ void modem_cmux_release(struct modem_cmux *cmux)
 {
 	struct k_work_sync sync;
 
-	__ASSERT_NO_MSG(cmux != NULL);
-
 	/* Close DLCI pipes */
 	modem_cmux_dlci_pipes_notify_closed(cmux);
 
@@ -983,10 +995,10 @@ void modem_cmux_release(struct modem_cmux *cmux)
 	modem_pipe_release(cmux->pipe);
 
 	/* Cancel all work */
-	k_work_cancel_sync(&cmux->connect_work.work, &sync);
-	k_work_cancel_sync(&cmux->disconnect_work.work, &sync);
-	k_work_cancel_sync(&cmux->transmit_work.work, &sync);
-	k_work_cancel_sync(&cmux->receive_work.work, &sync);
+	k_work_cancel_delayable_sync(&cmux->connect_work.dwork, &sync);
+	k_work_cancel_delayable_sync(&cmux->disconnect_work.dwork, &sync);
+	k_work_cancel_delayable_sync(&cmux->transmit_work.dwork, &sync);
+	k_work_cancel_delayable_sync(&cmux->receive_work.dwork, &sync);
 
 	/* Unreference pipe */
 	cmux->pipe = NULL;

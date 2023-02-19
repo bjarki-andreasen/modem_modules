@@ -24,7 +24,7 @@
 /*                                         Definitions                                           */
 /*************************************************************************************************/
 #warning "Please update the following defines to match your modem"
-#define SAMPLE_APN  "\"trackunit.m2m\""
+#define SAMPLE_APN  "\"\""
 #define SAMPLE_CMUX "AT+CMUX=0,0,5,127,10,3,30,10,2"
 
 /*************************************************************************************************/

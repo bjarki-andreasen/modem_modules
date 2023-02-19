@@ -78,7 +78,7 @@ enum modem_cmux_dlci_event {
 struct modem_cmux_dlci;
 
 struct modem_cmux_dlci_work {
-	struct k_work work;
+	struct k_work_delayable dwork;
 	struct modem_cmux_dlci *dlci;
 };
 
@@ -114,11 +114,6 @@ struct modem_cmux_frame {
 };
 
 struct modem_cmux_work {
-	struct k_work work;
-	struct modem_cmux *cmux;
-};
-
-struct modem_cmux_work_delayable {
 	struct k_work_delayable dwork;
 	struct modem_cmux *cmux;
 };
