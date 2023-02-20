@@ -55,7 +55,7 @@ static struct k_event sample_event;
 /*                                        Modem pipe UART                                        */
 /*************************************************************************************************/
 static struct modem_backend_uart uart_backend;
-static uint8_t backend_uart_rx_buf[256];
+static uint8_t backend_uart_rx_buf[512];
 static uint8_t backend_uart_tx_buf[256];
 static struct modem_pipe *uart_pipe;
 
