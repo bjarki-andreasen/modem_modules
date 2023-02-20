@@ -13,6 +13,7 @@
 #include <zephyr/net/net_pkt.h>
 #include "zephyr/net/net_l2.h"
 #include "zephyr/net/ppp.h"
+#include <zephyr/sys/crc.h>
 #include <string.h>
 
 #include <zephyr/modem/modem_ppp.h>
@@ -22,6 +23,10 @@
 #define TEST_MODEM_PPP_TX_PKT_BUF_SIZE	     (5)
 #define TEST_MODEM_PPP_MOCK_PIPE_RX_BUF_SIZE (4096)
 #define TEST_MODEM_PPP_MOCK_PIPE_TX_BUF_SIZE (4096)
+
+#define TEST_MODEM_PPP_IP_FRAME_SEND_MULT_N	(5)
+#define TEST_MODEM_PPP_IP_FRAME_SEND_LARGE_N	(2048)
+#define TEST_MODEM_PPP_IP_FRAME_RECEIVE_LARGE_N (2048)
 
 /*************************************************************************************************/
 /*                                          Mock pipe                                            */
@@ -66,6 +71,8 @@ static uint8_t corrupt_start_end_ppp_frame_wrapped[] = {0x2A, 0x46, 0x7E, 0x7E, 
 static struct net_pkt *received_packets[12];
 static size_t received_packets_len;
 static uint8_t buffer[4096];
+static uint8_t unwrapped_buffer[4096];
+static uint8_t wrapped_buffer[4096];
 
 /*************************************************************************************************/
 /*                                  Mock network interface                                       */
@@ -139,7 +146,130 @@ static int test_net_send(struct net_pkt *pkt)
 }
 
 /*************************************************************************************************/
-/*                                     Modem PPP net device                                      */
+/*                                         Helpers                                               */
+/*************************************************************************************************/
+static uint8_t test_modem_ppp_prng_random(bool reset)
+{
+	static uint32_t prng_state = 1234;
+
+	if (reset == true) {
+		prng_state = 1234;
+	}
+
+	prng_state = (1103515245 * prng_state + 12345) % (1 << 31);
+
+	return (uint8_t)(prng_state & 0xFF);
+}
+
+static size_t test_modem_ppp_fill_net_pkt(struct net_pkt *pkt, size_t size)
+{
+	test_modem_ppp_prng_random(true);
+
+	for (size_t i = 0; i < size; i++) {
+		if (net_pkt_write_u8(pkt, test_modem_ppp_prng_random(false)) < 0) {
+			return i;
+		}
+	}
+
+	return size;
+}
+
+static size_t test_modem_ppp_unwrap(uint8_t *unwrapped, const uint8_t *wrapped, size_t wrapped_size)
+{
+	size_t wrapped_pos = 4;
+	size_t unwrapped_pos = 0;
+
+	while (wrapped_pos < (wrapped_size - 1)) {
+		/* Escape byte */
+		if (wrapped[wrapped_pos] == 0x7D) {
+			unwrapped[unwrapped_pos] = wrapped[wrapped_pos + 1] ^ 0x20;
+			wrapped_pos += 2;
+			unwrapped_pos += 1;
+
+			continue;
+		}
+
+		/* Normal byte */
+		unwrapped[unwrapped_pos] = wrapped[wrapped_pos];
+		wrapped_pos += 1;
+		unwrapped_pos += 1;
+	}
+
+	/* Remove FCS */
+	unwrapped_pos -= 2;
+
+	return unwrapped_pos;
+}
+
+static bool test_modem_ppp_validate_fill(const uint8_t *data, size_t size)
+{
+	test_modem_ppp_prng_random(true);
+
+	for (size_t i = 0; i < size; i++) {
+		if (data[i] != test_modem_ppp_prng_random(false)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static void test_modem_ppp_generate_ppp_frame(uint8_t *frame, size_t size)
+{
+	uint8_t byte;
+	uint16_t fcs;
+
+	test_modem_ppp_prng_random(true);
+
+	byte = 0x03;
+	fcs = crc16_ccitt(0xFFFF, &byte, 0x01);
+
+	frame[0] = 0x00;
+	frame[1] = 0x21;
+
+	for (size_t i = 2; i < (size - 2); i++) {
+		byte = test_modem_ppp_prng_random(false);
+		frame[i] = byte;
+	}
+
+	fcs = crc16_ccitt(fcs, frame, size) ^ 0xFFFF;
+
+	frame[size - 2] = fcs >> 8;
+	frame[size - 1] = fcs;
+}
+
+static size_t test_modem_ppp_wrap_ppp_frame(uint8_t *wrapped, const uint8_t *frame, size_t size)
+{
+	size_t wrapped_pos = 4;
+
+	wrapped[0] = 0x7E;
+	wrapped[1] = 0xFF;
+	wrapped[2] = 0x7D;
+	wrapped[3] = 0x23;
+
+	for (size_t i = 0; i < size; i++) {
+		if ((frame[i] == 0x7E) || (frame[i] == 0x7D) || (frame[i] < 0x20)) {
+			wrapped[wrapped_pos] = 0x7D;
+			wrapped[wrapped_pos + 1] = frame[i] ^ 0x20;
+
+			wrapped_pos += 2;
+
+			continue;
+		}
+
+		wrapped[wrapped_pos] = frame[i];
+
+		wrapped_pos += 1;
+	}
+
+	wrapped[wrapped_pos] = 0x7E;
+	wrapped_pos += 1;
+
+	return wrapped_pos;
+}
+
+/*************************************************************************************************/
+/*                                         Test setup                                            */
 /*************************************************************************************************/
 static void *test_modem_ppp_setup(void)
 {
@@ -182,6 +312,9 @@ static void test_modem_ppp_before(void *f)
 	modem_backend_mock_reset(&mock);
 }
 
+/*************************************************************************************************/
+/*                                             Tests                                             */
+/*************************************************************************************************/
 ZTEST(modem_ppp, ppp_frame_receive)
 {
 	struct net_pkt *pkt;
@@ -335,15 +468,13 @@ ZTEST(modem_ppp, ip_frame_send)
 		     "Wrapped frame content is incorrect");
 }
 
-#define MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N (5)
-
 ZTEST(modem_ppp, ip_frame_send_multiple)
 {
-	struct net_pkt *pkts[MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N];
+	struct net_pkt *pkts[TEST_MODEM_PPP_IP_FRAME_SEND_MULT_N];
 	int ret;
 
 	/* Allocate net pkts */
-	for (uint8_t i = 0; i < MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N; i++) {
+	for (uint8_t i = 0; i < TEST_MODEM_PPP_IP_FRAME_SEND_MULT_N; i++) {
 		pkts[i] = net_pkt_alloc_with_buffer(&test_iface, 256, AF_UNSPEC, 0, K_NO_WAIT);
 
 		zassert_true(pkts[i] != NULL, "Failed to allocate network packet");
@@ -358,7 +489,7 @@ ZTEST(modem_ppp, ip_frame_send_multiple)
 	}
 
 	/* Send net pkts */
-	for (uint8_t i = 0; i < MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N; i++) {
+	for (uint8_t i = 0; i < TEST_MODEM_PPP_IP_FRAME_SEND_MULT_N; i++) {
 		test_net_send(pkts[i]);
 	}
 
@@ -366,8 +497,74 @@ ZTEST(modem_ppp, ip_frame_send_multiple)
 
 	ret = modem_backend_mock_get(&mock, buffer, TEST_MODEM_PPP_MOCK_PIPE_RX_BUF_SIZE);
 
-	zassert_true(ret == (sizeof(ip_frame_wrapped) * MODEM_PPP_TEST_IP_FRAME_SEND_MULT_N),
+	zassert_true(ret == (sizeof(ip_frame_wrapped) * TEST_MODEM_PPP_IP_FRAME_SEND_MULT_N),
 		     "Incorrect data amount received");
+}
+
+ZTEST(modem_ppp, ip_frame_send_large)
+{
+	struct net_pkt *pkt;
+	size_t size;
+	int ret;
+
+	pkt = net_pkt_alloc_with_buffer(&test_iface, TEST_MODEM_PPP_IP_FRAME_SEND_LARGE_N,
+					AF_UNSPEC, 0, K_NO_WAIT);
+
+	net_pkt_cursor_init(pkt);
+
+	net_pkt_set_family(pkt, AF_INET);
+
+	size = test_modem_ppp_fill_net_pkt(pkt, TEST_MODEM_PPP_IP_FRAME_SEND_LARGE_N);
+
+	zassert_true(size == TEST_MODEM_PPP_IP_FRAME_SEND_LARGE_N, "Failed to fill net pkt");
+
+	test_net_send(pkt);
+
+	k_msleep(TEST_MODEM_PPP_IP_FRAME_SEND_LARGE_N * 2);
+
+	ret = modem_backend_mock_get(&mock, buffer, TEST_MODEM_PPP_MOCK_PIPE_RX_BUF_SIZE);
+
+	size = test_modem_ppp_unwrap(unwrapped_buffer, buffer, ret);
+
+	/* Data + protocol */
+	zassert_true(size == (TEST_MODEM_PPP_IP_FRAME_SEND_LARGE_N + 2),
+		     "Incorrect data amount received");
+
+	/* Validate protocol */
+	zassert_true(unwrapped_buffer[0] == 0x00, "Incorrect protocol");
+	zassert_true(unwrapped_buffer[1] == 0x21, "Incorrect protocol");
+
+	/* Validate data */
+	zassert_true(test_modem_ppp_validate_fill(&unwrapped_buffer[2], (size - 2)) == true,
+		     "Incorrect data received");
+}
+
+ZTEST(modem_ppp, ip_frame_receive_large)
+{
+	struct net_pkt *pkt;
+	size_t size;
+	size_t pkt_len;
+
+	test_modem_ppp_generate_ppp_frame(buffer, TEST_MODEM_PPP_IP_FRAME_RECEIVE_LARGE_N);
+
+	size = test_modem_ppp_wrap_ppp_frame(wrapped_buffer, buffer,
+					     TEST_MODEM_PPP_IP_FRAME_RECEIVE_LARGE_N);
+
+	zassert_true(size > TEST_MODEM_PPP_IP_FRAME_RECEIVE_LARGE_N, "Failed to wrap data");
+
+	modem_backend_mock_put(&mock, wrapped_buffer, size);
+
+	k_msleep(TEST_MODEM_PPP_IP_FRAME_RECEIVE_LARGE_N * 2);
+
+	zassert_true(received_packets_len == 1, "Expected to receive one network packet");
+
+	pkt = received_packets[0];
+
+	pkt_len = net_pkt_get_len(pkt);
+
+	/* FCS is removed from packet data */
+	zassert_true(pkt_len == (TEST_MODEM_PPP_IP_FRAME_RECEIVE_LARGE_N - 2),
+		     "Incorrect length of net packet received");
 }
 
 ZTEST_SUITE(modem_ppp, NULL, test_modem_ppp_setup, test_modem_ppp_before, NULL, NULL);

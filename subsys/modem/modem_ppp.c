@@ -289,8 +289,8 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 
 	case MODEM_PPP_RECEIVE_STATE_HDR_23:
 		if (byte == 0x23) {
-			ppp->pkt = net_pkt_rx_alloc_with_buffer(ppp->iface, 256, AF_UNSPEC, 0,
-								K_NO_WAIT);
+			ppp->pkt = net_pkt_rx_alloc_with_buffer(
+				ppp->iface, CONFIG_NET_BUF_DATA_SIZE, AF_UNSPEC, 0, K_NO_WAIT);
 
 			if (ppp->pkt == NULL) {
 				LOG_WRN("Dropped frame, no net_pkt available");
@@ -332,6 +332,22 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 			ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
 
 			break;
+		}
+
+		if (net_pkt_available_buffer(ppp->pkt) == 1) {
+			if (net_pkt_alloc_buffer(ppp->pkt, CONFIG_NET_BUF_DATA_SIZE, AF_INET,
+						 K_NO_WAIT) < 0) {
+				LOG_WRN("Failed to alloc buffer -> net_pkt(0x%08x)",
+					(size_t)ppp->pkt);
+
+				net_pkt_unref(ppp->pkt);
+
+				ppp->pkt = NULL;
+
+				ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
+
+				break;
+			}
 		}
 
 		if (byte == 0x7D) {
