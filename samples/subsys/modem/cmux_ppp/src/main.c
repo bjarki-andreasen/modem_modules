@@ -310,7 +310,7 @@ void main(void)
 
 	uart_pipe = modem_backend_uart_init(&uart_backend, &backend_uart_config);
 
-	ret = modem_pipe_open_sync(uart_pipe);
+	ret = modem_pipe_open(uart_pipe);
 	if (ret < 0) {
 		return;
 	}
@@ -430,12 +430,12 @@ void main(void)
 	printk("CMUX connected\n");
 
 	/* Open CMUX channels */
-	ret = modem_pipe_open_sync(dlci1_pipe);
+	ret = modem_pipe_open(dlci1_pipe);
 	if (ret < 0) {
 		return;
 	}
 
-	ret = modem_pipe_open_sync(dlci2_pipe);
+	ret = modem_pipe_open(dlci2_pipe);
 	if (ret < 0) {
 		return;
 	}
@@ -558,12 +558,12 @@ void main(void)
 	printk("Closing DLCI 1 and 2\n");
 
 	/* Close CMUX channels */
-	ret = modem_pipe_close_sync(dlci1_pipe);
+	ret = modem_pipe_close(dlci1_pipe);
 	if (ret < 0) {
 		return;
 	}
 
-	ret = modem_pipe_close_sync(dlci2_pipe);
+	ret = modem_pipe_close(dlci2_pipe);
 	if (ret < 0) {
 		return;
 	}

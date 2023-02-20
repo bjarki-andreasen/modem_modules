@@ -216,7 +216,7 @@ static void *test_modem_chat_setup(void)
 
 	mock_pipe = modem_backend_mock_init(&mock, &mock_config);
 
-	zassert(modem_pipe_open_sync(mock_pipe) == 0, "Failed to open mock pipe");
+	zassert(modem_pipe_open(mock_pipe) == 0, "Failed to open mock pipe");
 
 	zassert(modem_chat_attach(&cmd, mock_pipe) == 0, "Failed to attach pipe mock to modem CMD");
 

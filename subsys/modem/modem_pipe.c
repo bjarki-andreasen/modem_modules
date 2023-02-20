@@ -27,19 +27,6 @@ int modem_pipe_open(struct modem_pipe *pipe)
 
 	ret = pipe->api->open(pipe->data);
 
-	k_mutex_unlock(&pipe->lock);
-
-	return ret;
-}
-
-int modem_pipe_open_sync(struct modem_pipe *pipe)
-{
-	int ret;
-
-	k_mutex_lock(&pipe->lock, K_FOREVER);
-
-	ret = pipe->api->open(pipe->data);
-
 	if (ret < 0) {
 		k_mutex_unlock(&pipe->lock);
 
@@ -59,6 +46,19 @@ int modem_pipe_open_sync(struct modem_pipe *pipe)
 	k_mutex_lock(&pipe->lock, K_FOREVER);
 
 	ret = (pipe->state == MODEM_PIPE_STATE_OPEN) ? 0 : -EAGAIN;
+
+	k_mutex_unlock(&pipe->lock);
+
+	return ret;
+}
+
+int modem_pipe_open_async(struct modem_pipe *pipe)
+{
+	int ret;
+
+	k_mutex_lock(&pipe->lock, K_FOREVER);
+
+	ret = pipe->api->open(pipe->data);
 
 	k_mutex_unlock(&pipe->lock);
 
@@ -131,19 +131,6 @@ int modem_pipe_close(struct modem_pipe *pipe)
 
 	ret = pipe->api->close(pipe->data);
 
-	k_mutex_unlock(&pipe->lock);
-
-	return ret;
-}
-
-int modem_pipe_close_sync(struct modem_pipe *pipe)
-{
-	int ret;
-
-	k_mutex_lock(&pipe->lock, K_FOREVER);
-
-	ret = pipe->api->close(pipe->data);
-
 	if (ret < 0) {
 		k_mutex_unlock(&pipe->lock);
 
@@ -163,6 +150,19 @@ int modem_pipe_close_sync(struct modem_pipe *pipe)
 	k_mutex_lock(&pipe->lock, K_FOREVER);
 
 	ret = (pipe->state == MODEM_PIPE_STATE_CLOSED) ? 0 : -EAGAIN;
+
+	k_mutex_unlock(&pipe->lock);
+
+	return ret;
+}
+
+int modem_pipe_close_async(struct modem_pipe *pipe)
+{
+	int ret;
+
+	k_mutex_lock(&pipe->lock, K_FOREVER);
+
+	ret = pipe->api->close(pipe->data);
 
 	k_mutex_unlock(&pipe->lock);
 

@@ -66,7 +66,7 @@ int modem_pipe_open(struct modem_pipe *pipe);
 /**
  * @brief Open pipe
  */
-int modem_pipe_open_sync(struct modem_pipe *pipe);
+int modem_pipe_open_async(struct modem_pipe *pipe);
 
 /**
  * @brief Set callback
@@ -103,14 +103,14 @@ int modem_pipe_receive(struct modem_pipe *pipe, uint8_t *buf, size_t size);
 void modem_pipe_release(struct modem_pipe *pipe);
 
 /**
- * @brief Release pipe
+ * @brief Close pipe
  */
 int modem_pipe_close(struct modem_pipe *pipe);
 
 /**
- * @brief Close pipe
+ * @brief Release pipe
  */
-int modem_pipe_close_sync(struct modem_pipe *pipe);
+int modem_pipe_close_async(struct modem_pipe *pipe);
 
 void modem_pipe_notify_opened(struct modem_pipe *pipe);
 

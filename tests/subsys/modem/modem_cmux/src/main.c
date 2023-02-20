@@ -219,7 +219,7 @@ static void *test_modem_cmux_setup(void)
 
 	bus_mock_pipe = modem_backend_mock_init(&bus_mock, &bus_mock_config);
 
-	zassert_true(modem_pipe_open(bus_mock_pipe) == 0, "Failed to open bus mock pipe");
+	zassert_true(modem_pipe_open_async(bus_mock_pipe) == 0, "Failed to open bus mock pipe");
 
 	/* Connect CMUX */
 	zassert_true(modem_cmux_attach(&cmux, bus_mock_pipe) == 0,
@@ -239,9 +239,9 @@ static void *test_modem_cmux_setup(void)
 	modem_pipe_attach(dlci1_pipe, test_modem_dlci1_pipe_callback, NULL);
 	modem_pipe_attach(dlci2_pipe, test_modem_dlci2_pipe_callback, NULL);
 
-	zassert_true(modem_pipe_open(dlci1_pipe) == 0, "Failed to open DLCI 1 pipe");
+	zassert_true(modem_pipe_open_async(dlci1_pipe) == 0, "Failed to open DLCI 1 pipe");
 
-	zassert_true(modem_pipe_open(dlci2_pipe) == 0, "Failed to open DLCI 1 pipe");
+	zassert_true(modem_pipe_open_async(dlci2_pipe) == 0, "Failed to open DLCI 1 pipe");
 
 	modem_backend_mock_put(&bus_mock, cmux_frame_dlci1_open_ack,
 			       sizeof(cmux_frame_dlci1_open_ack));

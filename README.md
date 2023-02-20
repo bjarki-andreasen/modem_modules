@@ -36,12 +36,19 @@ Using the modem subsystem, the Device Driver layer is only tasked with power man
 7. Build the sample using the command **west build -p -b \<your board> modem_modules/samples/subsys/modem/cmux_ppp**
 8. Run the application, you should get the console output
 ```
-*** Booting Zephyr OS build zephyr-v3.2.0-4297-g18ce85c20130 ***
+*** Booting Zephyr OS build v3.3.0-rc3-63-g06d5bc51b580 ***
 CMUX connected
-DLCI channels opened
+Opened DLCI CMUX channels
+Chat connected to DLCI2
+Chat disconnected
+Chat connected to DLCI1
+PPP connected to DLCI2
 Modem registered to network
+Bringing up network
 Network L4 connected
 Network L4 disconnected
-CMUX disconnected
+Releasing chat and PPP
+Closing DLCI 1 and 2
+Disconnecting CMUX
 Sample complete
 ```
