@@ -964,6 +964,8 @@ int modem_cmux_attach(struct modem_cmux *cmux, struct modem_pipe *pipe)
 
 int modem_cmux_connect(struct modem_cmux *cmux)
 {
+	__ASSERT_NO_MSG(cmux->pipe != NULL);
+
 	if (k_work_delayable_is_pending(&cmux->connect_work.dwork) == true) {
 		return -EBUSY;
 	}
