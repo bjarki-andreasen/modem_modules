@@ -55,8 +55,8 @@ static struct k_event sample_event;
 /*                                        Modem pipe UART                                        */
 /*************************************************************************************************/
 static struct modem_backend_uart uart_backend;
-static uint8_t backend_uart_rx_buf[512];
-static uint8_t backend_uart_tx_buf[256];
+static uint8_t backend_uart_receive_buf[512];
+static uint8_t backend_uart_transmit_buf[256];
 static struct modem_pipe *uart_pipe;
 
 /*************************************************************************************************/
@@ -302,10 +302,10 @@ void main(void)
 	 */
 	const struct modem_backend_uart_config backend_uart_config = {
 		.uart = modem_uart,
-		.rx_buf = backend_uart_rx_buf,
-		.rx_buf_size = ARRAY_SIZE(backend_uart_rx_buf),
-		.tx_buf = backend_uart_tx_buf,
-		.tx_buf_size = ARRAY_SIZE(backend_uart_tx_buf),
+		.receive_buf = backend_uart_receive_buf,
+		.receive_buf_size = ARRAY_SIZE(backend_uart_receive_buf),
+		.transmit_buf = backend_uart_transmit_buf,
+		.transmit_buf_size = ARRAY_SIZE(backend_uart_transmit_buf),
 	};
 
 	uart_pipe = modem_backend_uart_init(&uart_backend, &backend_uart_config);

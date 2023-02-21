@@ -9,6 +9,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/ring_buffer.h>
+#include <zephyr/sys/atomic.h>
 
 #include <zephyr/modem/modem_pipe.h>
 
@@ -24,19 +25,21 @@ struct modem_backend_uart_work {
 
 struct modem_backend_uart {
 	const struct device *uart;
-	struct ring_buf rx_rdb[2];
-	uint8_t rx_rdb_used;
-	struct ring_buf tx_rb;
+	struct ring_buf receive_rdb[2];
+	uint8_t receive_rdb_used;
+	struct ring_buf transmit_rb;
+	atomic_t transmit_buf_len;
+	uint32_t transmit_buf_put_limit;
 	struct modem_pipe pipe;
 	struct modem_backend_uart_work receive_ready_work;
 };
 
 struct modem_backend_uart_config {
 	const struct device *uart;
-	uint8_t *rx_buf;
-	uint32_t rx_buf_size;
-	uint8_t *tx_buf;
-	uint32_t tx_buf_size;
+	uint8_t *receive_buf;
+	uint32_t receive_buf_size;
+	uint8_t *transmit_buf;
+	uint32_t transmit_buf_size;
 };
 
 struct modem_pipe *modem_backend_uart_init(struct modem_backend_uart *backend,

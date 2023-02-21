@@ -439,11 +439,20 @@ static void modem_ppp_send_handler(struct k_work *item)
 	/* Reserve data to transmit from transmit ring buffer */
 	reserved_size = ring_buf_get_claim(&ppp->transmit_rb, &reserved, UINT32_MAX);
 
-	/* Transmit reserved data */
+	if (reserved_size == 0) {
+		ring_buf_get_finish(&ppp->transmit_rb, 0);
+
+		return;
+	}
+
 	ret = modem_pipe_transmit(ppp->pipe, reserved, reserved_size);
 
 	/* Release remaining reserved data */
-	ring_buf_get_finish(&ppp->transmit_rb, (uint32_t)ret);
+	if (ret < 0) {
+		ring_buf_get_finish(&ppp->transmit_rb, 0);
+	} else {
+		ring_buf_get_finish(&ppp->transmit_rb, (uint32_t)ret);
+	}
 
 	/* Resubmit send work if data remains */
 	if ((ring_buf_is_empty(&ppp->transmit_rb) == false) || (ppp->tx_pkt != NULL)) {
