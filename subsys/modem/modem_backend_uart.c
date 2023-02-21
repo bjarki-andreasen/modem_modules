@@ -17,7 +17,8 @@ static void modem_backend_uart_irq_handler_receive_ready(struct modem_backend_ua
 	uint8_t *buffer;
 	int ret;
 
-	size = ring_buf_put_claim(&backend->receive_rdb[backend->receive_rdb_used], &buffer, UINT32_MAX);
+	size = ring_buf_put_claim(&backend->receive_rdb[backend->receive_rdb_used], &buffer,
+				  UINT32_MAX);
 
 	if (size == 0) {
 		LOG_WRN("receive buffer overrun");
@@ -35,7 +36,8 @@ static void modem_backend_uart_irq_handler_receive_ready(struct modem_backend_ua
 	if (ret < 0) {
 		ring_buf_put_finish(&backend->receive_rdb[backend->receive_rdb_used], 0);
 	} else {
-		ring_buf_put_finish(&backend->receive_rdb[backend->receive_rdb_used], (uint32_t)ret);
+		ring_buf_put_finish(&backend->receive_rdb[backend->receive_rdb_used],
+				    (uint32_t)ret);
 	}
 
 	if (ret > 0) {
@@ -191,8 +193,7 @@ struct modem_pipe_api modem_backend_uart_api = {
 
 static void modem_backend_uart_receive_ready_handler(struct k_work *item)
 {
-	struct modem_backend_uart_work *backend_work =
-		(struct modem_backend_uart_work *)item;
+	struct modem_backend_uart_work *backend_work = (struct modem_backend_uart_work *)item;
 
 	struct modem_backend_uart *backend = backend_work->backend;
 
@@ -216,7 +217,8 @@ struct modem_pipe *modem_backend_uart_init(struct modem_backend_uart *backend,
 
 	backend->uart = config->uart;
 
-	backend->transmit_buf_put_limit = config->transmit_buf_size - (config->transmit_buf_size / 4);
+	backend->transmit_buf_put_limit =
+		config->transmit_buf_size - (config->transmit_buf_size / 4);
 
 	receive_double_buf_size = config->receive_buf_size / 2;
 

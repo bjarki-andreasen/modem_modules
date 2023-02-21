@@ -85,25 +85,19 @@ struct modem_chat_script_chat {
 
 #define MODEM_CHAT_SCRIPT_CMD_RESP(_request, _response_match)                                      \
 	{                                                                                          \
-		.request = _request,                                                               \
-		.response_matches = &_response_match,                                              \
-		.response_matches_size = 1,                                                        \
-		.timeout = 0,                                                                      \
+		.request = _request, .response_matches = &_response_match,                         \
+		.response_matches_size = 1, .timeout = 0,                                          \
 	}
 
 #define MODEM_CHAT_SCRIPT_CMD_RESP_MULT(_request, _response_matches)                               \
 	{                                                                                          \
-		.request = _request,                                                               \
-		.response_matches = _response_matches,                                             \
-		.response_matches_size = ARRAY_SIZE(_response_matches),                            \
-		.timeout = 0,                                                                      \
+		.request = _request, .response_matches = _response_matches,                        \
+		.response_matches_size = ARRAY_SIZE(_response_matches), .timeout = 0,              \
 	}
 
 #define MODEM_CHAT_SCRIPT_CMD_RESP_NONE(_request, _timeout)                                        \
 	{                                                                                          \
-		.request = _request,                                                               \
-		.response_matches = NULL,                                                          \
-		.response_matches_size = 0,                                                        \
+		.request = _request, .response_matches = NULL, .response_matches_size = 0,         \
 		.timeout = _timeout,                                                               \
 	}
 

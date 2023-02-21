@@ -33,6 +33,6 @@ struct modem_backend_tty_config {
 };
 
 struct modem_pipe *modem_backend_tty_init(struct modem_backend_tty *backend,
-					   const struct modem_backend_tty_config *config);
+					  const struct modem_backend_tty_config *config);
 
 #endif /* ZEPHYR_MODEM_MODEM_BACKEND_UART */

@@ -43,12 +43,13 @@ static uint8_t buffer1[1024];
 /*************************************************************************************************/
 /*                                          Helpers                                              */
 /*************************************************************************************************/
-static void test_modem_backend_tty_cfmakeraw(struct termios *termios_p) {
-    termios_p->c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
-    termios_p->c_oflag &= ~OPOST;
-    termios_p->c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
-    termios_p->c_cflag &= ~(CSIZE | PARENB);
-    termios_p->c_cflag |= CS8;
+static void test_modem_backend_tty_cfmakeraw(struct termios *termios_p)
+{
+	termios_p->c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+	termios_p->c_oflag &= ~OPOST;
+	termios_p->c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+	termios_p->c_cflag &= ~(CSIZE | PARENB);
+	termios_p->c_cflag |= CS8;
 }
 
 /*************************************************************************************************/
@@ -59,8 +60,7 @@ static atomic_t tty_pipe_events;
 static void modem_pipe_callback_handler(struct modem_pipe *pipe, enum modem_pipe_event event,
 					void *user_data)
 {
-	switch (event)
-	{
+	switch (event) {
 	case MODEM_PIPE_EVENT_OPENED:
 		atomic_set_bit(&tty_pipe_events, TEST_MODEM_BACKEND_TTY_PIPE_EVENT_OPENED_BIT);
 

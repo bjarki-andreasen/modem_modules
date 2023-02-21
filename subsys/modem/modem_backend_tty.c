@@ -72,8 +72,7 @@ struct modem_pipe_api modem_backend_tty_api = {
 
 static void modem_backend_tty_receive_ready_handler(struct k_work *item)
 {
-	struct modem_backend_tty_work *backend_work =
-		(struct modem_backend_tty_work *)item;
+	struct modem_backend_tty_work *backend_work = (struct modem_backend_tty_work *)item;
 
 	struct modem_backend_tty *backend = backend_work->backend;
 	struct pollfd pollfd;
@@ -87,7 +86,7 @@ static void modem_backend_tty_receive_ready_handler(struct k_work *item)
 		return;
 	}
 
-	if(pollfd.revents & POLLIN) {
+	if (pollfd.revents & POLLIN) {
 		modem_pipe_notify_receive_ready(&backend->pipe);
 	}
 
@@ -108,7 +107,8 @@ struct modem_pipe *modem_backend_tty_init(struct modem_backend_tty *backend,
 	modem_pipe_init(&backend->pipe, backend, &modem_backend_tty_api);
 
 	backend->receive_ready_work.backend = backend;
-	k_work_init_delayable(&backend->receive_ready_work.dwork, modem_backend_tty_receive_ready_handler);
+	k_work_init_delayable(&backend->receive_ready_work.dwork,
+			      modem_backend_tty_receive_ready_handler);
 
 	return &backend->pipe;
 }
