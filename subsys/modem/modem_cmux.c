@@ -690,6 +690,8 @@ static void modem_cmux_transmit_handler(struct k_work *item)
 
 		k_mutex_unlock(&cmux->transmit_rb_lock);
 
+		k_work_schedule(&cmux->transmit_work.dwork, K_NO_WAIT);
+
 		return;
 	}
 
