@@ -42,7 +42,7 @@ static void modem_backend_uart_irq_handler_rx_ready(struct modem_backend_uart *b
 
 	/* Invoke event if data was received */
 	if (0 < ret) {
-		modem_pipe_notify_receive_ready(&backend->pipe);
+		k_work_submit(&backend->receive_ready_work.work);
 	}
 }
 
@@ -164,7 +164,7 @@ static int modem_backend_uart_receive(void *data, uint8_t *buf, uint32_t size)
 
 	/* Invoke receive ready event if data remains */
 	if (ring_buf_is_empty(&backend->rx_rdb[backend->rx_rdb_used]) == false) {
-		modem_pipe_notify_receive_ready(&backend->pipe);
+		k_work_submit(&backend->receive_ready_work.work);
 	}
 
 	uart_irq_rx_enable(backend->uart);
@@ -191,6 +191,16 @@ struct modem_pipe_api modem_backend_uart_api = {
 	.close = modem_backend_uart_close,
 };
 
+static void modem_backend_uart_receive_ready_handler(struct k_work *item)
+{
+	struct modem_backend_uart_work *backend_work =
+		(struct modem_backend_uart_work *)item;
+
+	struct modem_backend_uart *backend = backend_work->backend;
+
+	modem_pipe_notify_receive_ready(&backend->pipe);
+}
+
 struct modem_pipe *modem_backend_uart_init(struct modem_backend_uart *backend,
 					   const struct modem_backend_uart_config *config)
 {
@@ -202,7 +212,7 @@ struct modem_pipe *modem_backend_uart_init(struct modem_backend_uart *backend,
 	__ASSERT_NO_MSG((config->rx_buf_size % 2) == 0);
 	__ASSERT_NO_MSG(config->tx_buf != NULL);
 	__ASSERT_NO_MSG(config->tx_buf_size > 0);
-	__ASSERT_NO_MSG(config->uart == NULL);
+	__ASSERT_NO_MSG(config->uart != NULL);
 
 	memset(backend, 0x00, sizeof(*backend));
 
@@ -220,6 +230,9 @@ struct modem_pipe *modem_backend_uart_init(struct modem_backend_uart *backend,
 	uart_irq_callback_user_data_set(backend->uart, modem_backend_uart_irq_handler, backend);
 
 	modem_pipe_init(&backend->pipe, backend, &modem_backend_uart_api);
+
+	backend->receive_ready_work.backend = backend;
+	k_work_init(&backend->receive_ready_work.work, modem_backend_uart_receive_ready_handler);
 
 	return &backend->pipe;
 }

@@ -15,12 +15,20 @@
 #ifndef ZEPHYR_MODEM_MODEM_BACKEND_UART
 #define ZEPHYR_MODEM_MODEM_BACKEND_UART
 
+struct modem_backend_uart;
+
+struct modem_backend_uart_work {
+	struct k_work work;
+	struct modem_backend_uart *backend;
+};
+
 struct modem_backend_uart {
 	const struct device *uart;
 	struct ring_buf rx_rdb[2];
 	uint8_t rx_rdb_used;
 	struct ring_buf tx_rb;
 	struct modem_pipe pipe;
+	struct modem_backend_uart_work receive_ready_work;
 };
 
 struct modem_backend_uart_config {

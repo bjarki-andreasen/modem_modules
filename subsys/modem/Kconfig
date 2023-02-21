@@ -6,6 +6,11 @@ menuconfig MODEM_MODULES
 
 if MODEM_MODULES
 
+config MODEM_BACKEND_TTY
+	bool "Modem TTY backend module"
+	select MODEM_PIPE
+	depends on ARCH_POSIX
+
 config MODEM_BACKEND_UART
 	bool "Modem UART backend module"
 	select MODEM_PIPE
