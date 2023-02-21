@@ -21,20 +21,31 @@ Potentially for these reasons, of these objects, only the ppp.c is currently tes
 This decision allows the gsm_ppp driver and its dependencies and the novel subsystem to persist in parralel, making it a choise for the user of Zephyr which approach to use.
 
 ## Modular design?
-The modem modules in the modem subsystem are loosely coupled using the modem_pipe structure and API. This is a simple bytes in/bytes out pipe with a callback when data is ready. Decoupling the modules using this interface makes testing the modules independently staight forward, using mocks which implement the modem_pipe API. It also allows for easily switching "backends", like (modem_pipe -> UART API) could be switched for (modem_pipe -> IPC) and using a CMUX DLCI channel could be switched for using the modem UART directly.
+The modem modules in the modem subsystem are loosely coupled using the modem_pipe structure and API. This is a simple bytes in/bytes out pipe with a callback when data is ready. Decoupling the modules using this interface makes testing the modules independently staight forward, using mocks which implement the modem_pipe API. It also allows for easily switching "backends", like (modem_pipe -> UART API) could be switched for (modem_pipe -> IPC) and using a CMUX DLCI channel could be switched for using the modem UART directly. At this time, backends for UART using ISR and TTY using POSIX are implemented.
 
 ## Portability
 Using the modem subsystem, the Device Driver layer is only tasked with power management and providing a serial interface to the modem. Everything above the serial interface is handled by the application, using the modem subsystem. This interface could be IPC, UART, I2C, etc. Simply create a backend for the specific phy and the modem subsystem will be able to use it.
 
-## How to run the sample
-1. Set up a clean Zephyr workspace, make sure you are using the latest upstream, otherwise NET L4 will never connect
+## How to run the UART based sample
+1. Set up a clean Zephyr workspace, make sure you are using Zephyr V3.3.0 or later
 2. Clone this repo to the workspace
 3. Run the following command in your terminal **export ZEPHYR_EXTRA_MODULES="$PWD/modem_modules"**
 4. Add .overlay file to this folder modem_modules/samples/subsys/modem/cmux_ppp for your board
 5. Create alias in the .overlay file for the UART used for your modem
 6. Add any board specific dependencies to the modem_modules/samples/subsys/modem/cmux_ppp/prj.conf file
 7. Build the sample using the command **west build -p -b \<your board> modem_modules/samples/subsys/modem/cmux_ppp**
-8. Run the application, you should get the console output
+8. Run the application
+
+## How to run the TTY based sample
+1. Set up a clean Zephyr workspace, make sure you are using Zephyr V3.3.0 or later
+2. Clone this repo to the workspace
+3. Run the following command in your terminal **export ZEPHYR_EXTRA_MODULES="$PWD/modem_modules"**
+4. Connect your modem to your PC using a RS232 -> TTL converter, and identify the TTY port it opened.
+5. Update the define specifying the TTY to use (something like /dev/ttyUSB0)
+6. Build the sample using the command **west build -p -b native_posix modem_modules/samples/subsys/modem/cmux_ppp_tty**
+7. Run the application
+
+## Example output
 ```
 *** Booting Zephyr OS build v3.3.0-rc3-63-g06d5bc51b580 ***
 CMUX connected
