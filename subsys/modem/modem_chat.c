@@ -12,9 +12,9 @@ LOG_MODULE_REGISTER(modem_chat);
 
 #include <zephyr/modem/modem_chat.h>
 
-#define MODEM_CHAT_MATCHES_INDEX_RESPONSE (0)
-#define MODEM_CHAT_MATCHES_INDEX_ABORT	  (1)
-#define MODEM_CHAT_MATCHES_INDEX_UNSOL	  (2)
+#define MODEM_CHAT_MATCHES_INDEX_RESPONSE   (0)
+#define MODEM_CHAT_MATCHES_INDEX_ABORT	    (1)
+#define MODEM_CHAT_MATCHES_INDEX_UNSOL	    (2)
 
 #define MODEM_CHAT_SCRIPT_STATE_RUNNING_BIT (0)
 
@@ -231,10 +231,19 @@ static bool modem_chat_script_chat_is_no_response(struct modem_chat *chat)
 	return (script_chat->response_matches_size == 0) ? true : false;
 }
 
+static uint16_t modem_chat_script_chat_get_send_timeout(struct modem_chat *chat)
+{
+	const struct modem_chat_script_chat *script_chat =
+		&chat->script->script_chats[chat->script_chat_it];
+
+	return script_chat->timeout;
+}
+
 static void modem_chat_script_send_handler(struct k_work *item)
 {
 	struct modem_chat_work_item *send_work = (struct modem_chat_work_item *)item;
 	struct modem_chat *chat = send_work->chat;
+	uint16_t timeout;
 
 	/* Validate script running */
 	if (chat->script == NULL) {
@@ -257,8 +266,27 @@ static void modem_chat_script_send_handler(struct k_work *item)
 
 	/* Check if script command is no response */
 	if (modem_chat_script_chat_is_no_response(chat)) {
-		modem_chat_script_next(chat, false);
+		timeout = modem_chat_script_chat_get_send_timeout(chat);
+
+		if (timeout == 0) {
+			modem_chat_script_next(chat, false);
+		} else {
+			k_work_schedule(&chat->script_send_timeout_work.dwork, K_MSEC(timeout));
+		}
 	}
+}
+
+static void modem_chat_script_send_timeout_handler(struct k_work *item)
+{
+	struct modem_chat_work_item *timeout_work = (struct modem_chat_work_item *)item;
+	struct modem_chat *chat = timeout_work->chat;
+
+	/* Validate script is currently running */
+	if (chat->script == NULL) {
+		return;
+	}
+
+	modem_chat_script_next(chat, false);
 }
 
 static void modem_chat_parse_reset(struct modem_chat *chat)
@@ -681,6 +709,10 @@ int modem_chat_init(struct modem_chat *chat, const struct modem_chat_config *con
 
 	chat->script_send_work.chat = chat;
 	k_work_init_delayable(&chat->script_send_work.dwork, modem_chat_script_send_handler);
+
+	chat->script_send_timeout_work.chat = chat;
+	k_work_init_delayable(&chat->script_send_timeout_work.dwork,
+			      modem_chat_script_send_timeout_handler);
 
 	return 0;
 }

@@ -24,7 +24,7 @@
 /*                                         Definitions                                           */
 /*************************************************************************************************/
 #warning "Please update the following defines to match your modem"
-#define SAMPLE_APN  "\"iBASIS.iot\""
+#define SAMPLE_APN  "\"trackunit.m2m\""
 #define SAMPLE_CMUX "AT+CMUX=0,0,5,127,10,3,30,10,2"
 #define SAMPLE_TTY_PATH "/dev/ttyUSB0"
 
@@ -181,9 +181,9 @@ static void modem_chat_callback_handler(struct modem_chat *chat,
 /*                                 Initialization chat script                                    */
 /*************************************************************************************************/
 MODEM_CHAT_SCRIPT_CMDS_DEFINE(init_chat_script_cmds,
-			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT"),
-			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT"),
-			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT"),
+			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 500),
+			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 500),
+			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 500),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("ATE0", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("ATH", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CFUN=1", ok_match),

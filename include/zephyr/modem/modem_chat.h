@@ -74,28 +74,37 @@ struct modem_chat_match {
  * @param request Request to send to modem formatted as char string
  * @param response_matches Expected responses to request
  * @param response_matches_size Elements in expected responses
+ * @param timeout Timeout before chat script may continue to next step
  */
 struct modem_chat_script_chat {
 	const char *request;
 	const struct modem_chat_match *const response_matches;
 	const uint16_t response_matches_size;
+	uint16_t timeout;
 };
 
 #define MODEM_CHAT_SCRIPT_CMD_RESP(_request, _response_match)                                      \
 	{                                                                                          \
-		.request = _request, .response_matches = &_response_match,                         \
-		.response_matches_size = 1                                                         \
+		.request = _request,                                                               \
+		.response_matches = &_response_match,                                              \
+		.response_matches_size = 1,                                                        \
+		.timeout = 0,                                                                      \
 	}
 
 #define MODEM_CHAT_SCRIPT_CMD_RESP_MULT(_request, _response_matches)                               \
 	{                                                                                          \
-		.request = _request, .response_matches = _response_matches,                        \
-		.response_matches_size = ARRAY_SIZE(_response_matches)                             \
+		.request = _request,                                                               \
+		.response_matches = _response_matches,                                             \
+		.response_matches_size = ARRAY_SIZE(_response_matches),                            \
+		.timeout = 0,                                                                      \
 	}
 
-#define MODEM_CHAT_SCRIPT_CMD_RESP_NONE(_request)                                                  \
+#define MODEM_CHAT_SCRIPT_CMD_RESP_NONE(_request, _timeout)                                        \
 	{                                                                                          \
-		.request = _request, .response_matches = NULL, .response_matches_size = 0          \
+		.request = _request,                                                               \
+		.response_matches = NULL,                                                          \
+		.response_matches_size = 0,                                                        \
+		.timeout = _timeout,                                                               \
 	}
 
 #define MODEM_CHAT_SCRIPT_CMDS_DEFINE(_sym, ...)                                                   \
@@ -251,6 +260,7 @@ struct modem_chat {
 	uint16_t script_send_request_pos;
 	uint16_t script_send_delimiter_pos;
 	struct modem_chat_work_item script_send_work;
+	struct modem_chat_work_item script_send_timeout_work;
 
 	/* Match parsing */
 	const struct modem_chat_match *parse_match;
