@@ -343,6 +343,6 @@ void modem_chat_script_abort(struct modem_chat *chat);
  * @brief Release pipe from command handler
  * @note Command handler is now disabled
  */
-int modem_chat_release(struct modem_chat *chat);
+void modem_chat_release(struct modem_chat *chat);
 
 #endif /* ZEPHYR_MODEM_MODEM_CHAT */

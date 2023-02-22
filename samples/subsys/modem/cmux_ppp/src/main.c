@@ -128,6 +128,15 @@ static void on_imei(struct modem_chat *chat, char **argv, uint16_t argc, void *u
 	}
 }
 
+static void on_cgmm(struct modem_chat *chat, char **argv, uint16_t argc, void *user_data)
+{
+	if (argc != 2) {
+		return;
+	}
+
+	strncpy(hwinfo, argv[1], sizeof(hwinfo) - 1);
+}
+
 static void on_creg(struct modem_chat *chat, char **argv, uint16_t argc, void *user_data)
 {
 	if (argc != 3) {
@@ -149,6 +158,7 @@ static void on_cgatt(struct modem_chat *chat, char **argv, uint16_t argc, void *
 
 MODEM_CHAT_MATCH_DEFINE(ok_match, "OK", "", NULL);
 MODEM_CHAT_MATCH_DEFINE(imei_match, "", "", on_imei);
+MODEM_CHAT_MATCH_DEFINE(cgmm_match, "", "", on_cgmm);
 MODEM_CHAT_MATCH_DEFINE(creg_match, "+CREG: ", ",", on_creg);
 MODEM_CHAT_MATCH_DEFINE(cgatt_match, "+CGATT: ", ",", on_cgatt);
 MODEM_CHAT_MATCH_DEFINE(connect_match, "CONNECT ", "", NULL);
@@ -186,11 +196,17 @@ static void modem_chat_callback_handler(struct modem_chat *chat,
 /*************************************************************************************************/
 /*                                 Initialization chat script                                    */
 /*************************************************************************************************/
-MODEM_CHAT_SCRIPT_CMDS_DEFINE(init_chat_script_cmds, MODEM_CHAT_SCRIPT_CMD_RESP("ATE0", ok_match),
+MODEM_CHAT_SCRIPT_CMDS_DEFINE(init_chat_script_cmds, MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 100),
+			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 100),
+			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 100),
+			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 100),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("ATE0", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("ATH", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CMEE=1", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CREG=0", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGSN", imei_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGMM", cgmm_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP(SAMPLE_CMUX, ok_match));
 
@@ -284,7 +300,6 @@ static void board_init(void)
 void main(void)
 {
 	int ret;
-	bool result;
 
 	board_init();
 
@@ -403,10 +418,7 @@ void main(void)
 	net_if_set_link_addr(modem_ppp_get_iface(&ppp), imei, ARRAY_SIZE(imei), NET_LINK_UNKNOWN);
 
 	/* Release bus pipe */
-	ret = modem_chat_release(&chat);
-	if (ret < 0) {
-		return;
-	}
+	modem_chat_release(&chat);
 
 	/* Give modem time to enter CMUX mode */
 	k_msleep(300);
@@ -464,10 +476,7 @@ void main(void)
 	}
 
 	/* Release modem chat module from DLCI channel 2 */
-	ret = modem_chat_release(&chat);
-	if (ret < 0) {
-		return;
-	}
+	modem_chat_release(&chat);
 
 	k_msleep(500);
 
@@ -544,16 +553,10 @@ void main(void)
 	printk("Releasing chat and PPP\n");
 
 	/* Release modem chat module from DLCI channel 1 */
-	ret = modem_chat_release(&chat);
-	if (ret < 0) {
-		return;
-	}
+	modem_chat_release(&chat);
 
 	/* Release modem PPP module from DLCI channel 2 */
-	ret = modem_ppp_release(&ppp);
-	if (ret < 0) {
-		return;
-	}
+	modem_ppp_release(&ppp);
 
 	printk("Closing DLCI 1 and 2\n");
 

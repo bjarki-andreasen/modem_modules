@@ -26,7 +26,7 @@
 #warning "Please update the following defines to match your modem"
 #define SAMPLE_APN	"\"trackunit.m2m\""
 #define SAMPLE_CMUX	"AT+CMUX=0,0,5,127,10,3,30,10,2"
-#define SAMPLE_TTY_PATH "/dev/ttyUSB0"
+#define SAMPLE_TTY_PATH "/dev/ttyUSB2"
 
 /*************************************************************************************************/
 /*                                            Events                                             */
@@ -103,6 +103,7 @@ MODEM_PPP_DEFINE(ppp, ppp_iface_init, 41, 1500, 64, 8);
 /*                                     Chat script matches                                       */
 /*************************************************************************************************/
 static uint8_t imei[15];
+static uint8_t hwinfo[64];
 static uint8_t access_tech;
 static uint8_t registration_status;
 static uint8_t packet_service_attached;
@@ -120,6 +121,15 @@ static void on_imei(struct modem_chat *chat, char **argv, uint16_t argc, void *u
 	for (uint8_t i = 0; i < 15; i++) {
 		imei[i] = argv[1][i] - '0';
 	}
+}
+
+static void on_cgmm(struct modem_chat *chat, char **argv, uint16_t argc, void *user_data)
+{
+	if (argc != 2) {
+		return;
+	}
+
+	strncpy(hwinfo, argv[1], sizeof(hwinfo) - 1);
 }
 
 static void on_creg(struct modem_chat *chat, char **argv, uint16_t argc, void *user_data)
@@ -143,6 +153,7 @@ static void on_cgatt(struct modem_chat *chat, char **argv, uint16_t argc, void *
 
 MODEM_CHAT_MATCH_DEFINE(ok_match, "OK", "", NULL);
 MODEM_CHAT_MATCH_DEFINE(imei_match, "", "", on_imei);
+MODEM_CHAT_MATCH_DEFINE(cgmm_match, "", "", on_cgmm);
 MODEM_CHAT_MATCH_DEFINE(creg_match, "+CREG: ", ",", on_creg);
 MODEM_CHAT_MATCH_DEFINE(cgatt_match, "+CGATT: ", ",", on_cgatt);
 MODEM_CHAT_MATCH_DEFINE(connect_match, "CONNECT ", "", NULL);
@@ -180,15 +191,18 @@ static void modem_chat_callback_handler(struct modem_chat *chat,
 /*************************************************************************************************/
 /*                                 Initialization chat script                                    */
 /*************************************************************************************************/
-MODEM_CHAT_SCRIPT_CMDS_DEFINE(init_chat_script_cmds, MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 500),
-			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 500),
-			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 500),
+MODEM_CHAT_SCRIPT_CMDS_DEFINE(init_chat_script_cmds, MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 100),
+			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 100),
+			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 100),
+			      MODEM_CHAT_SCRIPT_CMD_RESP_NONE("AT", 100),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("ATE0", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("ATH", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CFUN=1", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CMEE=1", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CREG=0", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGSN", imei_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGMM", cgmm_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP(SAMPLE_CMUX, ok_match));
 
@@ -271,7 +285,6 @@ static bool event_wait_all(uint32_t events, bool reset)
 void main(void)
 {
 	int ret;
-	bool result;
 
 	/*
 	 * Initialize network management event callback. It is not a requirement.
@@ -383,11 +396,11 @@ void main(void)
 	/* Set IMEI as net link address */
 	net_if_set_link_addr(modem_ppp_get_iface(&ppp), imei, ARRAY_SIZE(imei), NET_LINK_UNKNOWN);
 
+	/* Print hardware info */
+	printk("Modem: %s\n", hwinfo);
+
 	/* Release bus pipe */
-	ret = modem_chat_release(&chat);
-	if (ret < 0) {
-		return;
-	}
+	modem_chat_release(&chat);
 
 	/* Give modem time to enter CMUX mode */
 	k_msleep(300);
@@ -445,10 +458,7 @@ void main(void)
 	}
 
 	/* Release modem chat module from DLCI channel 2 */
-	ret = modem_chat_release(&chat);
-	if (ret < 0) {
-		return;
-	}
+	modem_chat_release(&chat);
 
 	k_msleep(500);
 
@@ -525,24 +535,15 @@ void main(void)
 	printk("Releasing chat and PPP\n");
 
 	/* Release modem chat module from DLCI channel 1 */
-	ret = modem_chat_release(&chat);
-	if (ret < 0) {
-		return;
-	}
+	modem_chat_release(&chat);
 
 	/* Release modem PPP module from DLCI channel 2 */
-	ret = modem_ppp_release(&ppp);
-	if (ret < 0) {
-		return;
-	}
+	modem_ppp_release(&ppp);
 
 	printk("Closing DLCI 1 and 2\n");
 
 	/* Close CMUX channels */
-	ret = modem_pipe_close(dlci1_pipe);
-	if (ret < 0) {
-		return;
-	}
+	modem_pipe_close(dlci1_pipe);
 
 	ret = modem_pipe_close(dlci2_pipe);
 	if (ret < 0) {

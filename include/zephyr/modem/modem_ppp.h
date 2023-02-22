@@ -117,7 +117,7 @@ struct net_if *modem_ppp_get_iface(struct modem_ppp *ppp);
  *
  * @param ppp Modem PPP instance
  */
-int modem_ppp_release(struct modem_ppp *ppp);
+void modem_ppp_release(struct modem_ppp *ppp);
 
 /**
  * @brief Initialize modem PPP instance device

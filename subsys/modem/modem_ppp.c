@@ -322,13 +322,10 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 			net_pkt_cursor_init(ppp->pkt);
 			net_pkt_set_ppp(ppp->pkt, true);
 
-			/* Receive on network interface */
 			net_recv_data(ppp->iface, ppp->pkt);
 
-			/* Remove reference to network packet */
 			ppp->pkt = NULL;
 
-			/* Reset state */
 			ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
 
 			break;
@@ -392,13 +389,9 @@ static void modem_ppp_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_eve
 {
 	struct modem_ppp *ppp = (struct modem_ppp *)user_data;
 
-	/* Validate receive ready */
-	if (event != MODEM_PIPE_EVENT_RECEIVE_READY) {
-		return;
+	if (event == MODEM_PIPE_EVENT_RECEIVE_READY) {
+		k_work_submit(&ppp->process_work.work);
 	}
-
-	/* Submit processing work */
-	k_work_submit(&ppp->process_work.work);
 }
 
 static void modem_ppp_send_handler(struct k_work *item)
@@ -436,7 +429,6 @@ static void modem_ppp_send_handler(struct k_work *item)
 		}
 	}
 
-	/* Reserve data to transmit from transmit ring buffer */
 	reserved_size = ring_buf_get_claim(&ppp->transmit_rb, &reserved, UINT32_MAX);
 
 	if (reserved_size == 0) {
@@ -447,7 +439,6 @@ static void modem_ppp_send_handler(struct k_work *item)
 
 	ret = modem_pipe_transmit(ppp->pipe, reserved, reserved_size);
 
-	/* Release remaining reserved data */
 	if (ret < 0) {
 		ring_buf_get_finish(&ppp->transmit_rb, 0);
 	} else {
@@ -466,15 +457,12 @@ static void modem_ppp_process_handler(struct k_work *item)
 	struct modem_ppp *ppp = ppp_work_item->ppp;
 	int ret;
 
-	/* Receive data from pipe */
 	ret = modem_pipe_receive(ppp->pipe, ppp->receive_buf, ppp->buf_size);
 
-	/* Validate data received */
 	if (ret < 1) {
 		return;
 	}
 
-	/* Process received data */
 	for (int i = 0; i < ret; i++) {
 		modem_ppp_process_received_byte(ppp, ppp->receive_buf[i]);
 	}
@@ -525,10 +513,8 @@ static int modem_ppp_ppp_api_send(const struct device *dev, struct net_pkt *pkt)
 		return -ENODATA;
 	}
 
-	/* Reference pkt */
 	net_pkt_ref(pkt);
 
-	/* Validate send submit work idle */
 	if (modem_ppp_tx_net_pkt_buf_put(ppp, pkt) == false) {
 		LOG_WRN("tx pkt buf overrun");
 
@@ -537,7 +523,6 @@ static int modem_ppp_ppp_api_send(const struct device *dev, struct net_pkt *pkt)
 		return -ENOMEM;
 	}
 
-	/* Submit send work */
 	k_work_submit(&ppp->send_work.work);
 
 	return 0;
@@ -564,17 +549,17 @@ struct net_if *modem_ppp_get_iface(struct modem_ppp *ppp)
 	return ppp->iface;
 }
 
-int modem_ppp_release(struct modem_ppp *ppp)
+void modem_ppp_release(struct modem_ppp *ppp)
 {
 	struct k_work_sync sync;
 	struct net_pkt *pkt;
 
 	modem_pipe_release(ppp->pipe);
 
-	ppp->pipe = NULL;
-
 	k_work_cancel_sync(&ppp->send_work.work, &sync);
 	k_work_cancel_sync(&ppp->process_work.work, &sync);
+
+	ppp->pipe = NULL;
 
 	if (ppp->pkt != NULL) {
 		net_pkt_unref(ppp->pkt);
@@ -584,8 +569,6 @@ int modem_ppp_release(struct modem_ppp *ppp)
 	while (modem_ppp_tx_net_pkt_buf_get(ppp, &pkt) == true) {
 		net_pkt_unref(pkt);
 	}
-
-	return 0;
 }
 
 int modem_ppp_init_internal(const struct device *dev)

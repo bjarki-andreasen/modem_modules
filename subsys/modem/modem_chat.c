@@ -660,23 +660,19 @@ static void modem_chat_pipe_callback(struct modem_pipe *pipe, enum modem_pipe_ev
  *********************************************************/
 int modem_chat_init(struct modem_chat *chat, const struct modem_chat_config *config)
 {
-	/* Validate arguments */
-	if ((chat == NULL) || (config == NULL)) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(chat != NULL);
+	__ASSERT_NO_MSG(config != NULL);
+	__ASSERT_NO_MSG(config->receive_buf != NULL);
+	__ASSERT_NO_MSG(config->receive_buf_size > 0);
+	__ASSERT_NO_MSG(config->argv != NULL);
+	__ASSERT_NO_MSG(config->argv_size > 0);
+	__ASSERT_NO_MSG(config->delimiter != NULL);
+	__ASSERT_NO_MSG(config->delimiter_size > 0);
+	__ASSERT_NO_MSG(!((config->filter == NULL) && (config->filter > 0)));
+	__ASSERT_NO_MSG(!((config->unsol_matches == NULL) && (config->unsol_matches_size > 0)));
 
-	/* Validate config */
-	if ((config->receive_buf == NULL) || (config->receive_buf_size == 0) ||
-	    (config->argv == NULL) || (config->argv_size == 0) || (config->delimiter == NULL) ||
-	    (config->delimiter_size == 0) || ((config->filter == NULL) && config->filter > 0) ||
-	    ((config->unsol_matches != NULL) && (config->unsol_matches_size == 0))) {
-		return -EINVAL;
-	}
-
-	/* Clear context */
 	memset(chat, 0x00, sizeof(*chat));
 
-	/* Configure command handler */
 	chat->pipe = NULL;
 	chat->user_data = config->user_data;
 	chat->receive_buf = config->receive_buf;
@@ -691,10 +687,8 @@ int modem_chat_init(struct modem_chat *chat, const struct modem_chat_config *con
 	chat->matches_size[MODEM_CHAT_MATCHES_INDEX_UNSOL] = config->unsol_matches_size;
 	chat->process_timeout = config->process_timeout;
 
-	/* Initial script state */
 	atomic_set(&chat->script_state, 0);
 
-	/* Initialize work items */
 	chat->process_work.chat = chat;
 	k_work_init_delayable(&chat->process_work.dwork, modem_chat_process_handler);
 
@@ -719,13 +713,10 @@ int modem_chat_init(struct modem_chat *chat, const struct modem_chat_config *con
 
 int modem_chat_attach(struct modem_chat *chat, struct modem_pipe *pipe)
 {
-	/* Associate command handler with pipe */
 	chat->pipe = pipe;
 
-	/* Reset parser */
 	modem_chat_parse_reset(chat);
 
-	/* Attach to modem pipe */
 	modem_pipe_attach(chat->pipe, modem_chat_pipe_callback, chat);
 
 	return 0;
@@ -735,12 +726,6 @@ int modem_chat_script_run(struct modem_chat *chat, const struct modem_chat_scrip
 {
 	bool script_is_running;
 
-	/* Validate arguments */
-	if ((chat == NULL) || (script == NULL)) {
-		return -EINVAL;
-	}
-
-	/* Validate attached */
 	if (chat->pipe == NULL) {
 		return -EPERM;
 	}
@@ -759,19 +744,15 @@ int modem_chat_script_run(struct modem_chat *chat, const struct modem_chat_scrip
 		}
 	}
 
-	/* Test if script is running */
 	script_is_running =
 		atomic_test_and_set_bit(&chat->script_state, MODEM_CHAT_SCRIPT_STATE_RUNNING_BIT);
 
-	/* Validate script not running */
 	if (script_is_running == true) {
 		return -EBUSY;
 	}
 
-	/* Initialize work item data */
 	chat->script_run_work.script = script;
 
-	/* Submit script run work */
 	k_work_submit(&chat->script_run_work.work);
 
 	return 0;
@@ -779,29 +760,19 @@ int modem_chat_script_run(struct modem_chat *chat, const struct modem_chat_scrip
 
 void modem_chat_script_abort(struct modem_chat *chat)
 {
-	/* Submit script abort work */
 	k_work_submit(&chat->script_abort_work.work);
 }
 
-int modem_chat_release(struct modem_chat *chat)
+void modem_chat_release(struct modem_chat *chat)
 {
-	/* Verify attached */
-	if (chat->pipe == NULL) {
-		return 0;
-	}
+	struct k_work_sync sync;
 
-	/* Release pipe */
 	modem_pipe_release(chat->pipe);
 
-	/* Unreference pipe */
-	chat->pipe = NULL;
-
-	/* Cancel all work */
-	struct k_work_sync sync;
 	k_work_cancel_sync(&chat->script_run_work.work, &sync);
 	k_work_cancel_sync(&chat->script_abort_work.work, &sync);
 	k_work_cancel_delayable_sync(&chat->process_work.dwork, &sync);
 	k_work_cancel_delayable_sync(&chat->script_send_work.dwork, &sync);
 
-	return 0;
+	chat->pipe = NULL;
 }
