@@ -518,7 +518,7 @@ void main(void)
 
 	printk("Network L4 connected\n");
 
-	k_msleep(5000);
+	k_msleep(120000);
 
 	/* Bring down PPP network interface */
 	net_ppp_carrier_off(modem_ppp_get_iface(&ppp));
