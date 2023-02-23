@@ -24,9 +24,9 @@
 /*                                         Definitions                                           */
 /*************************************************************************************************/
 #warning "Please update the following defines to match your modem"
-#define SAMPLE_APN	"\"trackunit.m2m\""
+#define SAMPLE_APN	""
+#define SAMPLE_TTY_PATH ""
 #define SAMPLE_CMUX	"AT+CMUX=0,0,5,127,10,3,30,10,2"
-#define SAMPLE_TTY_PATH "/dev/ttyUSB2"
 
 /*************************************************************************************************/
 /*                                            Events                                             */
@@ -41,8 +41,6 @@
 #define SAMPLE_EVENT_CMUX_DLCI2_CLOSED	 BIT(7)
 #define SAMPLE_EVENT_CMUX_DISCONNECTED	 BIT(8)
 #define SAMPLE_EVENT_NET_L4_CONNECTED	 BIT(9)
-#define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
-#define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
 #define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
 
 static struct k_event sample_event;
@@ -225,7 +223,7 @@ MODEM_CHAT_SCRIPT_DEFINE(net_stat_chat_script, net_stat_chat_script_cmds, abort_
 /*                                     Connect chat script                                       */
 /*************************************************************************************************/
 MODEM_CHAT_SCRIPT_CMDS_DEFINE(connect_chat_script_cmds,
-			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGDCONT=1,\"IP\"," SAMPLE_APN,
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+CGDCONT=1,\"IP\",\""SAMPLE_APN"\"",
 							 ok_match),
 			      MODEM_CHAT_SCRIPT_CMD_RESP("ATD*99#", connect_match));
 
