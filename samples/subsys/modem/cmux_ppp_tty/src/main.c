@@ -42,8 +42,7 @@
 #define SAMPLE_EVENT_CMUX_DISCONNECTED	 BIT(8)
 #define SAMPLE_EVENT_NET_L4_CONNECTED	 BIT(9)
 #define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
-#define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
-#define SAMPLE_EVENT_NET_L4_DISCONNECTED BIT(10)
+#define SAMPLE_EVENT_GNSS_LOC_UPD        BIT(11)
 
 static struct k_event sample_event;
 
@@ -151,12 +150,32 @@ static void on_cgatt(struct modem_chat *chat, char **argv, uint16_t argc, void *
 	packet_service_attached = atoi(argv[1]);
 }
 
+static void on_qgpsloc(struct modem_chat *chat, char **argv, uint16_t argc, void *user_data)
+{
+	int nsat = atoi(argv[11]);
+
+	if (argc < 12) {
+		return;
+	}
+
+	printk("GNSS: nsat: %i\n", nsat);
+
+	if (nsat < 6) {
+		return;
+	}
+
+	printk("GNSS: Lat: %s, Long: %s\n", argv[2], argv[3]);
+
+	k_event_post(&sample_event, SAMPLE_EVENT_GNSS_LOC_UPD);
+}
+
 MODEM_CHAT_MATCH_DEFINE(ok_match, "OK", "", NULL);
 MODEM_CHAT_MATCH_DEFINE(imei_match, "", "", on_imei);
 MODEM_CHAT_MATCH_DEFINE(cgmm_match, "", "", on_cgmm);
 MODEM_CHAT_MATCH_DEFINE(creg_match, "+CREG: ", ",", on_creg);
 MODEM_CHAT_MATCH_DEFINE(cgatt_match, "+CGATT: ", ",", on_cgatt);
 MODEM_CHAT_MATCH_DEFINE(connect_match, "CONNECT ", "", NULL);
+MODEM_CHAT_MATCH_DEFINE(qgpsloc_match, "+QGPSLOC: ", ",", on_qgpsloc);
 
 /*************************************************************************************************/
 /*                                  Chat script abort matches                                    */
@@ -233,6 +252,33 @@ MODEM_CHAT_SCRIPT_DEFINE(connect_chat_script, connect_chat_script_cmds, abort_ma
 			 modem_chat_callback_handler, 120);
 
 /*************************************************************************************************/
+/*                                         GNSS scipts                                           */
+/*************************************************************************************************/
+MODEM_CHAT_MATCHES_DEFINE(gnss_abort_matches,
+			  MODEM_CHAT_MATCH("ERROR", "", NULL),
+			  MODEM_CHAT_MATCH("BUSY", "", NULL),
+			  MODEM_CHAT_MATCH("+CME ERROR", "", NULL),);
+
+MODEM_CHAT_SCRIPT_CMDS_DEFINE(gnss_on_chat_script_cmds,
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+QGPS=1", ok_match));
+
+MODEM_CHAT_SCRIPT_DEFINE(gnss_on_chat_script, gnss_on_chat_script_cmds, gnss_abort_matches,
+			 modem_chat_callback_handler, 10);
+
+MODEM_CHAT_SCRIPT_CMDS_DEFINE(gnss_poll_chat_script_cmds,
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+QGPSLOC?", qgpsloc_match),
+			      MODEM_CHAT_SCRIPT_CMD_RESP("", ok_match));
+
+MODEM_CHAT_SCRIPT_DEFINE(gnss_poll_chat_script, gnss_poll_chat_script_cmds, gnss_abort_matches,
+			 NULL, 10);
+
+MODEM_CHAT_SCRIPT_CMDS_DEFINE(gnss_off_chat_script_cmds,
+			      MODEM_CHAT_SCRIPT_CMD_RESP("AT+QGPSEND", ok_match));
+
+MODEM_CHAT_SCRIPT_DEFINE(gnss_off_chat_script, gnss_off_chat_script_cmds, gnss_abort_matches,
+			 modem_chat_callback_handler, 10);
+
+/*************************************************************************************************/
 /*                                       Network manager                                         */
 /*************************************************************************************************/
 static struct net_mgmt_event_callback mgmt_cb;
@@ -285,6 +331,8 @@ static bool event_wait_all(uint32_t events, bool reset)
 void main(void)
 {
 	int ret;
+
+	printk("Starting\n");
 
 	/*
 	 * Initialize network management event callback. It is not a requirement.
@@ -381,6 +429,8 @@ void main(void)
 	}
 
 	chat_script_reset();
+
+	printk("Run init script\n");
 
 	/* Send initialization script */
 	ret = modem_chat_script_run(&chat, &init_chat_script);
@@ -481,7 +531,48 @@ void main(void)
 	printk("Chat connected to DLCI1\n");
 	printk("PPP connected to DLCI2\n");
 
-	/* Wait for cellular modem registered to network */
+	printk("Turn on GNSS\n");
+
+	chat_script_reset();
+
+	ret = modem_chat_script_run(&chat, &gnss_on_chat_script);
+	if (ret < 0) {
+		return;
+	}
+
+	/* Wait for script execution complete */
+	if (chat_script_wait() == false) {
+		return;
+	}
+
+	printk("Wait for fix for fix\n");
+
+	while (1) {
+		modem_chat_script_run(&chat, &gnss_poll_chat_script);
+
+		if (k_event_wait(&sample_event, SAMPLE_EVENT_GNSS_LOC_UPD, true,
+					K_MSEC(1000))) {
+			break;
+		}
+	}
+
+	k_msleep(1000);
+
+	printk("Turn off GNSS\n");
+
+	ret = modem_chat_script_run(&chat, &gnss_off_chat_script);
+	if (ret < 0) {
+		return;
+	}
+
+	if (chat_script_wait() == false) {
+		return;
+	}
+
+	k_msleep(500);
+
+	printk("Register to network\n");
+
 	while (1) {
 		chat_script_reset();
 
@@ -503,22 +594,24 @@ void main(void)
 			break;
 		}
 
-		k_msleep(5000);
+		k_msleep(2000);
 	}
 
 	printk("Bringing up network\n");
+
+	k_event_clear(&sample_event, SAMPLE_EVENT_NET_L4_CONNECTED);
 
 	/* Bring up PPP network interface */
 	net_ppp_carrier_on(modem_ppp_get_iface(&ppp));
 
 	/* Wait for network layer 4 connected */
-	if (event_wait_all(SAMPLE_EVENT_NET_L4_CONNECTED, false) == false) {
-		return;
-	}
+	k_event_wait(&sample_event, SAMPLE_EVENT_NET_L4_CONNECTED, false, K_FOREVER);
 
 	printk("Network L4 connected\n");
 
-	k_msleep(120000);
+	k_msleep(20000);
+
+	k_event_clear(&sample_event, SAMPLE_EVENT_NET_L4_DISCONNECTED);
 
 	/* Bring down PPP network interface */
 	net_ppp_carrier_off(modem_ppp_get_iface(&ppp));
