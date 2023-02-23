@@ -6,7 +6,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(modem_ppp);
 
-#define MODEM_PPP_FRAME_TAIL_SIZE (2)
+#define MODEM_PPP_STATE_ATTACHED_BIT	(0)
+#define MODEM_PPP_FRAME_TAIL_SIZE	(2)
 
 static bool modem_ppp_tx_net_pkt_buf_put(struct modem_ppp *ppp, struct net_pkt *pkt)
 {
@@ -501,6 +502,10 @@ static int modem_ppp_ppp_api_send(const struct device *dev, struct net_pkt *pkt)
 {
 	struct modem_ppp *ppp = (struct modem_ppp *)dev->data;
 
+	if (atomic_test_bit(&ppp->state, MODEM_PPP_STATE_ATTACHED_BIT) == false) {
+		return -EPERM;
+	}
+
 	/* Validate packet protocol */
 	if ((net_pkt_is_ppp(pkt) == false) && (net_pkt_family(pkt) != AF_INET) &&
 	    (net_pkt_family(pkt) != AF_INET6)) {
@@ -537,6 +542,10 @@ const struct ppp_api modem_ppp_ppp_api = {
 
 int modem_ppp_attach(struct modem_ppp *ppp, struct modem_pipe *pipe)
 {
+	if (atomic_test_and_set_bit(&ppp->state, MODEM_PPP_STATE_ATTACHED_BIT) == true) {
+		return 0;
+	}
+
 	modem_pipe_attach(pipe, modem_ppp_pipe_callback, ppp);
 
 	ppp->pipe = pipe;
@@ -553,6 +562,10 @@ void modem_ppp_release(struct modem_ppp *ppp)
 {
 	struct k_work_sync sync;
 	struct net_pkt *pkt;
+
+	if (atomic_test_and_clear_bit(&ppp->state, MODEM_PPP_STATE_ATTACHED_BIT) == false) {
+		return;
+	}
 
 	modem_pipe_release(ppp->pipe);
 
@@ -574,6 +587,8 @@ void modem_ppp_release(struct modem_ppp *ppp)
 int modem_ppp_init_internal(const struct device *dev)
 {
 	struct modem_ppp *ppp = (struct modem_ppp *)dev->data;
+
+	atomic_set(&ppp->state, 0);
 
 	ring_buf_init(&ppp->transmit_rb, ppp->buf_size, ppp->transmit_buf);
 

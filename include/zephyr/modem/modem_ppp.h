@@ -3,6 +3,7 @@
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/sys/ring_buffer.h>
+#include <zephyr/sys/atomic.h>
 
 #include <zephyr/modem/modem_pipe.h>
 
@@ -61,6 +62,8 @@ struct modem_ppp {
 
 	/* Hook for PPP L2 network interface initialization */
 	modem_ppp_init_iface init_iface;
+
+	atomic_t state;
 
 	/* Buffers used for processing partial frames */
 	uint8_t *receive_buf;
