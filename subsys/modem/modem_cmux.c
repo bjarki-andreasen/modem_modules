@@ -278,7 +278,8 @@ static void modem_cmux_on_control_frame_uih(struct modem_cmux *cmux)
 {
 	struct modem_cmux_command *command;
 
-	if (cmux->state != MODEM_CMUX_STATE_CONNECTED) {
+	if ((cmux->state != MODEM_CMUX_STATE_CONNECTED) &&
+	    (cmux->state != MODEM_CMUX_STATE_DISCONNECTING)) {
 		LOG_DBG("Unexpected UIH frame");
 
 		return;
@@ -827,8 +828,6 @@ static void modem_cmux_dlci_open_handler(struct k_work *item)
 	struct modem_cmux_dlci_work *dlci_work = (struct modem_cmux_dlci_work *)item;
 
 	struct modem_cmux_dlci *dlci = dlci_work->dlci;
-
-	sys_slist_append(&dlci->cmux->dlcis, &dlci->node);
 
 	dlci->state = MODEM_CMUX_DLCI_STATE_OPENING;
 
