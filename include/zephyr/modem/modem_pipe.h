@@ -48,7 +48,7 @@ struct modem_pipe {
 	void *user_data;
 	enum modem_pipe_state state;
 	struct k_mutex lock;
-	struct k_sem sem;
+	struct k_condvar condvar;
 };
 
 /**

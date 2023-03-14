@@ -19,16 +19,27 @@ struct modem_backend_mock_work {
 	struct modem_backend_mock *mock;
 };
 
+struct modem_backend_mock_transaction
+{
+	/* Get data which will trigger put */
+	const uint8_t *get;
+	size_t get_size;
+
+	/* Data which will be put in response to get data */
+	const uint8_t *put;
+	size_t put_size;
+};
+
 struct modem_backend_mock {
-	/* Pipe */
 	struct modem_pipe pipe;
 
-	/* Ring buffers */
 	struct ring_buf rx_rb;
 	struct ring_buf tx_rb;
 
-	/* Work */
 	struct modem_backend_mock_work received_work_item;
+
+	const struct modem_backend_mock_transaction *transaction;
+	size_t transaction_match_cnt;
 
 	/* Max allowed read/write size */
 	size_t limit;
@@ -50,5 +61,8 @@ void modem_backend_mock_reset(struct modem_backend_mock *mock);
 int modem_backend_mock_get(struct modem_backend_mock *mock, uint8_t *buf, size_t size);
 
 void modem_backend_mock_put(struct modem_backend_mock *mock, const uint8_t *buf, size_t size);
+
+void modem_backend_mock_prime(struct modem_backend_mock *mock,
+			      const struct modem_backend_mock_transaction *transaction);
 
 #endif /* ZEPHYR_DRIVERS_MODEM_MODEM_PIPE_MOCK */

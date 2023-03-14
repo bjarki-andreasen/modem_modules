@@ -16,7 +16,7 @@ void modem_pipe_init(struct modem_pipe *pipe, void *data, struct modem_pipe_api 
 	pipe->state = MODEM_PIPE_STATE_CLOSED;
 
 	k_mutex_init(&pipe->lock);
-	k_sem_init(&pipe->sem, 0, 1);
+	k_condvar_init(&pipe->condvar);
 }
 
 int modem_pipe_open(struct modem_pipe *pipe)
@@ -39,11 +39,7 @@ int modem_pipe_open(struct modem_pipe *pipe)
 		return 0;
 	}
 
-	k_mutex_unlock(&pipe->lock);
-
-	k_sem_take(&pipe->sem, K_FOREVER);
-
-	k_mutex_lock(&pipe->lock, K_FOREVER);
+	k_condvar_wait(&pipe->condvar, &pipe->lock, K_MSEC(10000));
 
 	ret = (pipe->state == MODEM_PIPE_STATE_OPEN) ? 0 : -EAGAIN;
 
@@ -143,13 +139,11 @@ int modem_pipe_close(struct modem_pipe *pipe)
 		return 0;
 	}
 
-	k_mutex_unlock(&pipe->lock);
-
-	k_sem_take(&pipe->sem, K_FOREVER);
-
-	k_mutex_lock(&pipe->lock, K_FOREVER);
+	k_condvar_wait(&pipe->condvar, &pipe->lock, K_MSEC(10000));
 
 	ret = (pipe->state == MODEM_PIPE_STATE_CLOSED) ? 0 : -EAGAIN;
+
+	k_mutex_unlock(&pipe->lock);
 
 	k_mutex_unlock(&pipe->lock);
 
@@ -179,9 +173,9 @@ void modem_pipe_notify_opened(struct modem_pipe *pipe)
 		pipe->callback(pipe, MODEM_PIPE_EVENT_OPENED, pipe->user_data);
 	}
 
-	k_mutex_unlock(&pipe->lock);
+	k_condvar_signal(&pipe->condvar);
 
-	k_sem_give(&pipe->sem);
+	k_mutex_unlock(&pipe->lock);
 }
 
 void modem_pipe_notify_closed(struct modem_pipe *pipe)
@@ -194,9 +188,9 @@ void modem_pipe_notify_closed(struct modem_pipe *pipe)
 		pipe->callback(pipe, MODEM_PIPE_EVENT_CLOSED, pipe->user_data);
 	}
 
-	k_mutex_unlock(&pipe->lock);
+	k_condvar_signal(&pipe->condvar);
 
-	k_sem_give(&pipe->sem);
+	k_mutex_unlock(&pipe->lock);
 }
 
 void modem_pipe_notify_receive_ready(struct modem_pipe *pipe)

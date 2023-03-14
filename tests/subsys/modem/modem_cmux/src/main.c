@@ -112,6 +112,8 @@ static uint8_t cmux_frame_dlci2_sabm_cmd[] = {0xF9, 0x0B, 0x3F, 0x01, 0x59, 0xF9
 
 static uint8_t cmux_frame_dlci2_sabm_ack[] = {0xF9, 0x0B, 0x73, 0x01, 0x92, 0xF9};
 
+static uint8_t cmux_frame_dlci2_disc_cmd[] = {0xF9, 0x0B, 0x53, 0x01, 0xB8, 0xF9};
+
 static uint8_t cmux_frame_dlci2_ua_ack[] = {0xF9, 0x0B, 0x73, 0x01, 0x92, 0xF9};
 
 static uint8_t cmux_frame_control_msc_cmd[] = {0xF9, 0x01, 0xFF, 0x09, 0xE3,
@@ -177,6 +179,34 @@ static uint8_t cmux_frame_dlci2_ppp_18[] = {0xF9, 0x09, 0xEF, 0x25, 0x7E, 0xFF, 
 static uint8_t cmux_frame_data_dlci2_ppp_18[] = {0x7E, 0xFF, 0x7D, 0x23, 0xC0, 0x21,
 						 0x7D, 0x22, 0x7D, 0x21, 0x7D, 0x20,
 						 0x7D, 0x24, 0x7D, 0x3C, 0x90, 0x7E};
+
+const static struct modem_backend_mock_transaction transaction_dlci1_disc = {
+	.get = cmux_frame_dlci1_disc_cmd,
+	.get_size = sizeof(cmux_frame_dlci1_disc_cmd),
+	.put = cmux_frame_dlci1_ua_ack,
+	.put_size = sizeof(cmux_frame_dlci1_ua_ack)
+};
+
+const static struct modem_backend_mock_transaction transaction_dlci2_disc = {
+	.get = cmux_frame_dlci2_disc_cmd,
+	.get_size = sizeof(cmux_frame_dlci2_disc_cmd),
+	.put = cmux_frame_dlci2_ua_ack,
+	.put_size = sizeof(cmux_frame_dlci2_ua_ack)
+};
+
+const static struct modem_backend_mock_transaction transaction_dlci1_sabm = {
+	.get = cmux_frame_dlci1_sabm_cmd,
+	.get_size = sizeof(cmux_frame_dlci1_sabm_cmd),
+	.put = cmux_frame_dlci1_ua_ack,
+	.put_size = sizeof(cmux_frame_dlci1_ua_ack)
+};
+
+const static struct modem_backend_mock_transaction transaction_dlci2_sabm = {
+	.get = cmux_frame_dlci2_sabm_cmd,
+	.get_size = sizeof(cmux_frame_dlci2_sabm_cmd),
+	.put = cmux_frame_dlci2_ua_ack,
+	.put_size = sizeof(cmux_frame_dlci2_ua_ack)
+};
 
 static void test_modem_cmux_callback(struct modem_cmux *cmux, enum modem_cmux_event event,
 				     void *user_data)
@@ -250,7 +280,6 @@ static void *test_modem_cmux_setup(void)
 	__ASSERT_NO_MSG(events == EVENT_CMUX_CONNECTED);
 
 	/* Open DLCI channels */
-
 	modem_pipe_attach(dlci1_pipe, test_modem_dlci1_pipe_callback, NULL);
 	modem_pipe_attach(dlci2_pipe, test_modem_dlci2_pipe_callback, NULL);
 
@@ -649,6 +678,25 @@ ZTEST(modem_cmux, modem_cmux_disconnect_connect)
 	ret = modem_backend_mock_get(&bus_mock, buffer1, sizeof(buffer1));
 
 	zassert_true(ret == 0, "Received unexpected data");
+}
+
+ZTEST(modem_cmux, modem_cmux_dlci_close_open_sync)
+{
+	modem_backend_mock_prime(&bus_mock, &transaction_dlci1_disc);
+
+	zassert_true(modem_pipe_close(dlci1_pipe) == 0, "Failed to close DLCI1");
+
+	modem_backend_mock_prime(&bus_mock, &transaction_dlci2_disc);
+
+	zassert_true(modem_pipe_close(dlci2_pipe) == 0, "Failed to close DLCI2");
+
+	modem_backend_mock_prime(&bus_mock, &transaction_dlci1_sabm);
+
+	zassert_true(modem_pipe_open(dlci1_pipe) == 0, "Failed to open DLCI1 pipe");
+
+	modem_backend_mock_prime(&bus_mock, &transaction_dlci2_sabm);
+
+	zassert_true(modem_pipe_open(dlci2_pipe) == 0, "Failed to open DLCI2 pipe");
 }
 
 ZTEST_SUITE(modem_cmux, NULL, test_modem_cmux_setup, test_modem_cmux_before, NULL, NULL);
