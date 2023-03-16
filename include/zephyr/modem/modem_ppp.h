@@ -77,7 +77,7 @@ struct modem_ppp {
 	enum modem_ppp_receive_state receive_state;
 
 	/* Allocated network packet being created */
-	struct net_pkt *pkt;
+	struct net_pkt *rx_pkt;
 
 	/* Packet being sent */
 	enum modem_ppp_transmit_state transmit_state;

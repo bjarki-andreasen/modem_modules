@@ -290,10 +290,10 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 
 	case MODEM_PPP_RECEIVE_STATE_HDR_23:
 		if (byte == 0x23) {
-			ppp->pkt = net_pkt_rx_alloc_with_buffer(
+			ppp->rx_pkt = net_pkt_rx_alloc_with_buffer(
 				ppp->iface, CONFIG_NET_BUF_DATA_SIZE, AF_UNSPEC, 0, K_NO_WAIT);
 
-			if (ppp->pkt == NULL) {
+			if (ppp->rx_pkt == NULL) {
 				LOG_WRN("Dropped frame, no net_pkt available");
 
 				ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
@@ -301,11 +301,11 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 				break;
 			}
 
-			LOG_DBG("Receiving PPP frame -> net_pkt(0x%08x)", (size_t)ppp->pkt);
+			LOG_DBG("Receiving PPP frame -> net_pkt(0x%08x)", (size_t)ppp->rx_pkt);
 
 			ppp->receive_state = MODEM_PPP_RECEIVE_STATE_WRITING;
 
-			net_pkt_cursor_init(ppp->pkt);
+			net_pkt_cursor_init(ppp->rx_pkt);
 
 		} else {
 			ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
@@ -315,32 +315,32 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 
 	case MODEM_PPP_RECEIVE_STATE_WRITING:
 		if (byte == 0x7E) {
-			LOG_DBG("Received PPP frame -> net_pkt(0x%08x)", (size_t)ppp->pkt);
+			LOG_DBG("Received PPP frame -> net_pkt(0x%08x)", (size_t)ppp->rx_pkt);
 
 			/* Remove FCS */
-			net_pkt_remove_tail(ppp->pkt, MODEM_PPP_FRAME_TAIL_SIZE);
+			net_pkt_remove_tail(ppp->rx_pkt, MODEM_PPP_FRAME_TAIL_SIZE);
 
-			net_pkt_cursor_init(ppp->pkt);
-			net_pkt_set_ppp(ppp->pkt, true);
+			net_pkt_cursor_init(ppp->rx_pkt);
+			net_pkt_set_ppp(ppp->rx_pkt, true);
 
-			net_recv_data(ppp->iface, ppp->pkt);
+			net_recv_data(ppp->iface, ppp->rx_pkt);
 
-			ppp->pkt = NULL;
+			ppp->rx_pkt = NULL;
 
 			ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
 
 			break;
 		}
 
-		if (net_pkt_available_buffer(ppp->pkt) == 1) {
-			if (net_pkt_alloc_buffer(ppp->pkt, CONFIG_NET_BUF_DATA_SIZE, AF_INET,
+		if (net_pkt_available_buffer(ppp->rx_pkt) == 1) {
+			if (net_pkt_alloc_buffer(ppp->rx_pkt, CONFIG_NET_BUF_DATA_SIZE, AF_INET,
 						 K_NO_WAIT) < 0) {
 				LOG_WRN("Failed to alloc buffer -> net_pkt(0x%08x)",
-					(size_t)ppp->pkt);
+					(size_t)ppp->rx_pkt);
 
-				net_pkt_unref(ppp->pkt);
+				net_pkt_unref(ppp->rx_pkt);
 
-				ppp->pkt = NULL;
+				ppp->rx_pkt = NULL;
 
 				ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
 
@@ -354,12 +354,12 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 			break;
 		}
 
-		if (net_pkt_write_u8(ppp->pkt, byte) < 0) {
-			LOG_WRN("Dropped PPP frame -> net_pkt(0x%08x)", (size_t)ppp->pkt);
+		if (net_pkt_write_u8(ppp->rx_pkt, byte) < 0) {
+			LOG_WRN("Dropped PPP frame -> net_pkt(0x%08x)", (size_t)ppp->rx_pkt);
 
-			net_pkt_unref(ppp->pkt);
+			net_pkt_unref(ppp->rx_pkt);
 
-			ppp->pkt = NULL;
+			ppp->rx_pkt = NULL;
 
 			ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
 		}
@@ -367,12 +367,12 @@ static void modem_ppp_process_received_byte(struct modem_ppp *ppp, uint8_t byte)
 		break;
 
 	case MODEM_PPP_RECEIVE_STATE_UNESCAPING:
-		if (net_pkt_write_u8(ppp->pkt, (byte ^ 0x20)) < 0) {
-			LOG_WRN("Dropped PPP frame -> net_pkt(0x%08x)", (size_t)ppp->pkt);
+		if (net_pkt_write_u8(ppp->rx_pkt, (byte ^ 0x20)) < 0) {
+			LOG_WRN("Dropped PPP frame -> net_pkt(0x%08x)", (size_t)ppp->rx_pkt);
 
-			net_pkt_unref(ppp->pkt);
+			net_pkt_unref(ppp->rx_pkt);
 
-			ppp->pkt = NULL;
+			ppp->rx_pkt = NULL;
 
 			ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
 
@@ -574,9 +574,18 @@ void modem_ppp_release(struct modem_ppp *ppp)
 
 	ppp->pipe = NULL;
 
-	if (ppp->pkt != NULL) {
-		net_pkt_unref(ppp->pkt);
-		ppp->pkt = NULL;
+	ppp->receive_state = MODEM_PPP_RECEIVE_STATE_HDR_SOF;
+
+	if (ppp->rx_pkt != NULL) {
+		net_pkt_unref(ppp->rx_pkt);
+		ppp->rx_pkt = NULL;
+	}
+
+	ppp->transmit_state = MODEM_PPP_TRANSMIT_STATE_IDLE;
+
+	if (ppp->tx_pkt != NULL) {
+		net_pkt_unref(ppp->tx_pkt);
+		ppp->tx_pkt = NULL;
 	}
 
 	while (modem_ppp_tx_net_pkt_buf_get(ppp, &pkt) == true) {

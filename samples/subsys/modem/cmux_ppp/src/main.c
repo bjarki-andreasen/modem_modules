@@ -109,6 +109,7 @@ MODEM_PPP_DEFINE(ppp, ppp_iface_init, 41, 1500, 64, 8);
 /*                                     Chat script matches                                       */
 /*************************************************************************************************/
 static uint8_t imei[15];
+static uint8_t hwinfo[64];
 static uint8_t access_tech;
 static uint8_t registration_status;
 static uint8_t packet_service_attached;

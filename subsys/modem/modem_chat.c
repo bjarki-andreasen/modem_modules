@@ -775,4 +775,15 @@ void modem_chat_release(struct modem_chat *chat)
 	k_work_cancel_delayable_sync(&chat->script_send_work.dwork, &sync);
 
 	chat->pipe = NULL;
+	chat->receive_buf_len = 0;
+	chat->work_buf_len = 0;
+	chat->argc = 0;
+	chat->script = NULL;
+	chat->script_chat_it = 0;
+	atomic_set(&chat->script_state, 0);
+	chat->script_send_request_pos = 0;
+	chat->script_send_delimiter_pos = 0;
+	chat->parse_match = NULL;
+	chat->parse_match_len = 0;
+	chat->parse_arg_len = 0;
 }
