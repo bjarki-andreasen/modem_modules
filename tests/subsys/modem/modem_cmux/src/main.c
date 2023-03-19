@@ -29,7 +29,7 @@
 /*************************************************************************************************/
 static struct modem_cmux cmux;
 static uint8_t cmux_receive_buf[127];
-static uint8_t cmux_transmit_buf[127];
+static uint8_t cmux_transmit_buf[149];
 static struct modem_cmux_dlci dlci1;
 static struct modem_cmux_dlci dlci2;
 static struct modem_pipe *dlci1_pipe;
@@ -42,8 +42,8 @@ static uint8_t bus_mock_rx_buf[4096];
 static uint8_t bus_mock_tx_buf[4096];
 static struct modem_pipe *bus_mock_pipe;
 
-static uint8_t dlci1_receive_buf[128];
-static uint8_t dlci2_receive_buf[128];
+static uint8_t dlci1_receive_buf[127];
+static uint8_t dlci2_receive_buf[127];
 
 static uint8_t buffer1[4096];
 static uint8_t buffer2[4096];
@@ -121,6 +121,14 @@ static uint8_t cmux_frame_control_msc_cmd[] = {0xF9, 0x01, 0xFF, 0x09, 0xE3,
 
 static uint8_t cmux_frame_control_msc_ack[] = {0xF9, 0x01, 0xFF, 0x09, 0xE1,
 					       0x05, 0x0B, 0x09, 0x8F, 0xF9};
+
+static uint8_t cmux_frame_control_fcon_cmd[] = {0xF9, 0x01, 0xFF, 0x05, 0xA3, 0x01, 0x86, 0xF9};
+
+static uint8_t cmux_frame_control_fcon_ack[] = {0xF9, 0x01, 0xFF, 0x05, 0xA1, 0x01, 0x86, 0xF9};
+
+static uint8_t cmux_frame_control_fcoff_cmd[] = {0xF9, 0x01, 0xFF, 0x05, 0x63, 0x01, 0x86, 0xF9};
+
+static uint8_t cmux_frame_control_fcoff_ack[] = {0xF9, 0x01, 0xFF, 0x05, 0x61, 0x01, 0x86, 0xF9};
 
 /*************************************************************************************************/
 /*                                     DLCI2 AT CMUX frames                                      */
@@ -452,6 +460,65 @@ ZTEST(modem_cmux, modem_cmux_resync)
 	zassert_true(memcmp(&buffer1[sizeof(cmux_frame_data_dlci1_at_at)],
 			    cmux_frame_data_dlci1_at_newline,
 			    sizeof(cmux_frame_data_dlci1_at_newline)) == 0,
+		     "Incorrect data received");
+}
+
+ZTEST(modem_cmux, modem_cmux_flow_control_dlci2)
+{
+	int ret;
+
+	modem_backend_mock_put(&bus_mock, cmux_frame_control_fcoff_cmd,
+			       sizeof(cmux_frame_control_fcoff_cmd));
+
+	k_msleep(100);
+
+	ret = modem_backend_mock_get(&bus_mock, buffer1, sizeof(buffer1));
+
+	zassert_true(ret == sizeof(cmux_frame_control_fcoff_ack),
+		     "Incorrect number of bytes received");
+
+	zassert_true(memcmp(buffer1, cmux_frame_control_fcoff_ack,
+			    sizeof(cmux_frame_control_fcoff_ack)) == 0,
+		     "Incorrect data received");
+
+	ret = modem_pipe_transmit(dlci2_pipe, cmux_frame_data_dlci2_ppp_52,
+				  sizeof(cmux_frame_data_dlci2_ppp_52));
+
+	zassert_true(ret == 0, "Failed to block transmit while flow control is off");
+
+	ret = modem_backend_mock_get(&bus_mock, buffer1, sizeof(buffer1));
+
+	zassert_true(ret == 0, "FCOFF failed to prevent transmission of data");
+
+	modem_backend_mock_put(&bus_mock, cmux_frame_control_fcon_cmd,
+			       sizeof(cmux_frame_control_fcon_cmd));
+
+	k_msleep(100);
+
+	ret = modem_backend_mock_get(&bus_mock, buffer1, sizeof(buffer1));
+
+	zassert_true(ret == sizeof(cmux_frame_control_fcon_ack),
+		     "Incorrect number of bytes received");
+
+	zassert_true(memcmp(buffer1, cmux_frame_control_fcon_ack,
+			    sizeof(cmux_frame_control_fcon_ack)) == 0,
+		     "Incorrect data received");
+
+	ret = modem_pipe_transmit(dlci2_pipe, cmux_frame_data_dlci2_ppp_52,
+				  sizeof(cmux_frame_data_dlci2_ppp_52));
+
+	zassert_true(ret == sizeof(cmux_frame_data_dlci2_ppp_52),
+		     "Transmit failed after flow control is enabled");
+
+	k_msleep(100);
+
+	ret = modem_backend_mock_get(&bus_mock, buffer1, sizeof(buffer1));
+
+	zassert_true(ret == sizeof(cmux_frame_dlci2_ppp_52),
+		     "Transmit failed after flow control is enabled");
+
+	zassert_true(memcmp(buffer1, cmux_frame_dlci2_ppp_52,
+			    sizeof(cmux_frame_dlci2_ppp_52)) == 0,
 		     "Incorrect data received");
 }
 
