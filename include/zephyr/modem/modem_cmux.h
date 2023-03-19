@@ -131,6 +131,7 @@ struct modem_cmux {
 
 	/* State */
 	enum modem_cmux_state state;
+	bool flow_control_on;
 
 	/* Receive state*/
 	enum modem_cmux_receive_state receive_state;
@@ -161,9 +162,9 @@ struct modem_cmux {
  * @param callback Invoked when event occurs
  * @param user_data Free to use pointer passed to event handler when invoked
  * @param receive_buf Receive buffer
- * @param receive_buf_size Sice of receive buffer in bytes
+ * @param receive_buf_size Size of receive buffer in bytes [127, ...]
  * @param transmit_buf Transmit buffer
- * @param transmit_buf_size Sice of ransmit buffer in bytes
+ * @param transmit_buf_size Size of transmit buffer in bytes [149, ...]
  * @param receive_timeout Timeout from data is received until data is read
  */
 struct modem_cmux_config {
@@ -184,7 +185,7 @@ void modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *co
  * @brief CMUX DLCI configuration
  * @param dlci_address DLCI channel address
  * @param receive_buf Receive buffer used by pipe
- * @param receive_buf_size Size of receive buffer used by pipe
+ * @param receive_buf_size Size of receive buffer used by pipe [127, ...]
  */
 struct modem_cmux_dlci_config {
 	uint8_t dlci_address;

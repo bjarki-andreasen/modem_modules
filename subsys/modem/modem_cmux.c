@@ -13,13 +13,21 @@ LOG_MODULE_REGISTER(modem_cmux);
 
 #include <string.h>
 
-#define MODEM_CMUX_FCS_POLYNOMIAL (0xE0)
-#define MODEM_CMUX_FCS_INIT_VALUE (0xFF)
-#define MODEM_CMUX_EA		  (0x01)
-#define MODEM_CMUX_CR		  (0x02)
-#define MODEM_CMUX_PF		  (0x10)
-#define MODEM_CMUX_FRAME_SIZE_MAX (0X08)
-#define MODEM_CMUX_T1_TIMEOUT	  (K_MSEC(330))
+#define MODEM_CMUX_FCS_POLYNOMIAL	(0xE0)
+#define MODEM_CMUX_FCS_INIT_VALUE	(0xFF)
+#define MODEM_CMUX_EA			(0x01)
+#define MODEM_CMUX_CR			(0x02)
+#define MODEM_CMUX_PF			(0x10)
+#define MODEM_CMUX_FRAME_SIZE_MAX	(0x08)
+#define MODEM_CMUX_DATA_SIZE_MIN	(0x08)
+#define MODEM_CMUX_DATA_FRAME_SIZE_MIN	(MODEM_CMUX_FRAME_SIZE_MAX + \
+					 MODEM_CMUX_DATA_SIZE_MIN)
+
+#define MODEM_CMUX_CMD_DATA_SIZE_MAX	(0x04)
+#define MODEM_CMUX_CMD_FRAME_SIZE_MAX	(MODEM_CMUX_FRAME_SIZE_MAX + \
+					 MODEM_CMUX_CMD_DATA_SIZE_MAX)
+
+#define MODEM_CMUX_T1_TIMEOUT		(K_MSEC(330))
 
 enum modem_cmux_frame_types {
 	MODEM_CMUX_FRAME_TYPE_RR = 0x01,
@@ -125,30 +133,14 @@ static void modem_cmux_bus_callback(struct modem_pipe *pipe, enum modem_pipe_eve
 }
 
 static uint16_t modem_cmux_transmit_frame(struct modem_cmux *cmux,
-					  const struct modem_cmux_frame *frame, bool allow_partial)
+					  const struct modem_cmux_frame *frame)
 {
 	uint8_t byte;
 	uint8_t fcs;
 	uint16_t space;
 	uint16_t data_len;
 
-	k_mutex_lock(&cmux->transmit_rb_lock, K_FOREVER);
-
-	space = ring_buf_space_get(&cmux->transmit_rb);
-
-	if (space < MODEM_CMUX_FRAME_SIZE_MAX) {
-		k_mutex_unlock(&cmux->transmit_rb_lock);
-
-		return 0;
-	}
-
-	space -= MODEM_CMUX_FRAME_SIZE_MAX;
-
-	if ((allow_partial == false) && (space < frame->data_len)) {
-		k_mutex_unlock(&cmux->transmit_rb_lock);
-
-		return 0;
-	}
+	space = ring_buf_space_get(&cmux->transmit_rb) - MODEM_CMUX_FRAME_SIZE_MAX;
 
 	data_len = (space < frame->data_len) ? space : frame->data_len;
 
@@ -208,18 +200,74 @@ static uint16_t modem_cmux_transmit_frame(struct modem_cmux *cmux,
 
 	ring_buf_put(&cmux->transmit_rb, &byte, 1);
 
-	k_mutex_unlock(&cmux->transmit_rb_lock);
-
 	k_work_schedule(&cmux->transmit_work.dwork, K_NO_WAIT);
 
 	return data_len;
+}
+
+static bool modem_cmux_transmit_cmd_frame(struct modem_cmux *cmux,
+					  const struct modem_cmux_frame *frame)
+{
+	uint16_t space;
+
+	k_mutex_lock(&cmux->transmit_rb_lock, K_FOREVER);
+
+	space = ring_buf_space_get(&cmux->transmit_rb);
+
+	if (space < MODEM_CMUX_CMD_FRAME_SIZE_MAX) {
+		k_mutex_unlock(&cmux->transmit_rb_lock);
+
+		return false;
+	}
+
+	modem_cmux_transmit_frame(cmux, frame);
+
+	k_mutex_unlock(&cmux->transmit_rb_lock);
+
+	return true;
+}
+
+static int16_t modem_cmux_transmit_data_frame(struct modem_cmux *cmux,
+					      const struct modem_cmux_frame *frame)
+{
+	uint16_t space;
+	int ret;
+
+	k_mutex_lock(&cmux->transmit_rb_lock, K_FOREVER);
+
+	if (cmux->flow_control_on == false) {
+		k_mutex_unlock(&cmux->transmit_rb_lock);
+
+		return 0;
+	}
+
+	space = ring_buf_space_get(&cmux->transmit_rb);
+
+	/*
+	 * Two command frames are reserved for command channel, and we shall prefer
+	 * waiting for more than MODEM_CMUX_DATA_FRAME_SIZE_MIN bytes available in the
+	 * transmit buffer rather than transmitting a few bytes at a time. This avoids
+	 * excessive wrapping overhead, since transmitting a single byte will require 8
+	 * bytes of wrapping.
+	 */
+	if (space < ((MODEM_CMUX_CMD_FRAME_SIZE_MAX * 2) + MODEM_CMUX_DATA_FRAME_SIZE_MIN)) {
+		k_mutex_unlock(&cmux->transmit_rb_lock);
+
+		return -ENOMEM;
+	}
+
+	ret = modem_cmux_transmit_frame(cmux, frame);
+
+	k_mutex_unlock(&cmux->transmit_rb_lock);
+
+	return ret;
 }
 
 static void modem_cmux_acknowledge_received_frame(struct modem_cmux *cmux)
 {
 	struct modem_cmux_command *command;
 	struct modem_cmux_frame frame;
-	uint8_t data[8];
+	uint8_t data[MODEM_CMUX_CMD_DATA_SIZE_MAX];
 
 	if (sizeof(data) < cmux->frame.data_len) {
 		LOG_WRN("Command acknowledge buffer overrun");
@@ -236,13 +284,35 @@ static void modem_cmux_acknowledge_received_frame(struct modem_cmux *cmux)
 	frame.data = data;
 	frame.data_len = cmux->frame.data_len;
 
-	if (modem_cmux_transmit_frame(cmux, &frame, false) < 1) {
+	if (modem_cmux_transmit_cmd_frame(cmux, &frame) == false) {
 		LOG_WRN("Command acknowledge buffer overrun");
 	}
 }
 
 static void modem_cmux_on_msc_command(struct modem_cmux *cmux)
 {
+	modem_cmux_acknowledge_received_frame(cmux);
+}
+
+static void modem_cmux_on_fcon_command(struct modem_cmux *cmux)
+{
+	k_mutex_lock(&cmux->transmit_rb_lock, K_FOREVER);
+
+	cmux->flow_control_on = true;
+
+	k_mutex_unlock(&cmux->transmit_rb_lock);
+
+	modem_cmux_acknowledge_received_frame(cmux);
+}
+
+static void modem_cmux_on_fcoff_command(struct modem_cmux *cmux)
+{
+	k_mutex_lock(&cmux->transmit_rb_lock, K_FOREVER);
+
+	cmux->flow_control_on = false;
+
+	k_mutex_unlock(&cmux->transmit_rb_lock);
+
 	modem_cmux_acknowledge_received_frame(cmux);
 }
 
@@ -253,6 +323,12 @@ static void modem_cmux_on_cld_command(struct modem_cmux *cmux)
 	}
 
 	cmux->state = MODEM_CMUX_STATE_DISCONNECTED;
+
+	k_mutex_lock(&cmux->transmit_rb_lock, K_FOREVER);
+
+	cmux->flow_control_on = false;
+
+	k_mutex_unlock(&cmux->transmit_rb_lock);
 
 	k_work_cancel_delayable(&cmux->disconnect_work.dwork);
 
@@ -268,6 +344,12 @@ static void modem_cmux_on_control_frame_ua(struct modem_cmux *cmux)
 	}
 
 	cmux->state = MODEM_CMUX_STATE_CONNECTED;
+
+	k_mutex_lock(&cmux->transmit_rb_lock, K_FOREVER);
+
+	cmux->flow_control_on = true;
+
+	k_mutex_unlock(&cmux->transmit_rb_lock);
 
 	k_work_cancel_delayable(&cmux->connect_work.dwork);
 
@@ -299,6 +381,16 @@ static void modem_cmux_on_control_frame_uih(struct modem_cmux *cmux)
 
 	case MODEM_CMUX_COMMAND_MSC:
 		modem_cmux_on_msc_command(cmux);
+
+		break;
+
+	case MODEM_CMUX_COMMAND_FCON:
+		modem_cmux_on_fcon_command(cmux);
+
+		break;
+
+	case MODEM_CMUX_COMMAND_FCOFF:
+		modem_cmux_on_fcoff_command(cmux);
 
 		break;
 
@@ -723,7 +815,7 @@ static void modem_cmux_connect_handler(struct k_work *item)
 		.data_len = 0,
 	};
 
-	modem_cmux_transmit_frame(cmux, &frame, false);
+	modem_cmux_transmit_cmd_frame(cmux, &frame);
 
 	k_work_schedule(&cmux->connect_work.dwork, MODEM_CMUX_T1_TIMEOUT);
 }
@@ -754,7 +846,7 @@ static void modem_cmux_disconnect_handler(struct k_work *item)
 	};
 
 	/* Transmit close down command */
-	modem_cmux_transmit_frame(cmux, &frame, false);
+	modem_cmux_transmit_cmd_frame(cmux, &frame);
 
 	k_work_schedule(&cmux->disconnect_work.dwork, MODEM_CMUX_T1_TIMEOUT);
 }
@@ -786,7 +878,7 @@ static int modem_cmux_dlci_pipe_api_transmit(void *data, const uint8_t *buf, uin
 		.data_len = size,
 	};
 
-	return modem_cmux_transmit_frame(cmux, &frame, true);
+	return modem_cmux_transmit_data_frame(cmux, &frame);
 }
 
 static int modem_cmux_dlci_pipe_api_receive(void *data, uint8_t *buf, uint32_t size)
@@ -840,7 +932,7 @@ static void modem_cmux_dlci_open_handler(struct k_work *item)
 		.data_len = 0,
 	};
 
-	modem_cmux_transmit_frame(dlci->cmux, &frame, false);
+	modem_cmux_transmit_cmd_frame(dlci->cmux, &frame);
 
 	k_work_schedule(&dlci->open_work.dwork, MODEM_CMUX_T1_TIMEOUT);
 }
@@ -863,7 +955,7 @@ static void modem_cmux_dlci_close_handler(struct k_work *item)
 		.data_len = 0,
 	};
 
-	modem_cmux_transmit_frame(cmux, &frame, true);
+	modem_cmux_transmit_cmd_frame(cmux, &frame);
 
 	k_work_schedule(&dlci->close_work.dwork, MODEM_CMUX_T1_TIMEOUT);
 }
@@ -885,9 +977,9 @@ void modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *co
 	__ASSERT_NO_MSG(cmux != NULL);
 	__ASSERT_NO_MSG(config != NULL);
 	__ASSERT_NO_MSG(config->receive_buf != NULL);
-	__ASSERT_NO_MSG(config->receive_buf_size > 0);
+	__ASSERT_NO_MSG(config->receive_buf_size >= 126);
 	__ASSERT_NO_MSG(config->transmit_buf != NULL);
-	__ASSERT_NO_MSG(config->transmit_buf_size > 0);
+	__ASSERT_NO_MSG(config->transmit_buf_size >= 148);
 
 	memset(cmux, 0x00, sizeof(*cmux));
 
@@ -925,7 +1017,7 @@ struct modem_pipe *modem_cmux_dlci_init(struct modem_cmux *cmux, struct modem_cm
 	__ASSERT_NO_MSG(config != NULL);
 	__ASSERT_NO_MSG(config->dlci_address < 64);
 	__ASSERT_NO_MSG(config->receive_buf != NULL);
-	__ASSERT_NO_MSG(config->receive_buf_size > 0);
+	__ASSERT_NO_MSG(config->receive_buf_size >= 126);
 
 	memset(dlci, 0x00, sizeof(*dlci));
 
