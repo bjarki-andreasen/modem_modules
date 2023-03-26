@@ -188,6 +188,20 @@ static uint8_t cmux_frame_data_dlci2_ppp_18[] = {0x7E, 0xFF, 0x7D, 0x23, 0xC0, 0
 						 0x7D, 0x22, 0x7D, 0x21, 0x7D, 0x20,
 						 0x7D, 0x24, 0x7D, 0x3C, 0x90, 0x7E};
 
+const static struct modem_backend_mock_transaction transaction_control_cld = {
+	.get = cmux_frame_control_cld_cmd,
+	.get_size = sizeof(cmux_frame_control_cld_cmd),
+	.put = cmux_frame_control_cld_ack,
+	.put_size = sizeof(cmux_frame_control_cld_ack)
+};
+
+const static struct modem_backend_mock_transaction transaction_control_sabm = {
+	.get = cmux_frame_control_sabm_cmd,
+	.get_size = sizeof(cmux_frame_control_sabm_cmd),
+	.put = cmux_frame_control_sabm_ack,
+	.put_size = sizeof(cmux_frame_control_sabm_ack)
+};
+
 const static struct modem_backend_mock_transaction transaction_dlci1_disc = {
 	.get = cmux_frame_dlci1_disc_cmd,
 	.get_size = sizeof(cmux_frame_dlci1_disc_cmd),
@@ -278,7 +292,7 @@ static void *test_modem_cmux_setup(void)
 	/* Connect CMUX */
 	__ASSERT_NO_MSG(modem_cmux_attach(&cmux, bus_mock_pipe) == 0);
 
-	__ASSERT_NO_MSG(modem_cmux_connect(&cmux) == 0);
+	__ASSERT_NO_MSG(modem_cmux_connect_async(&cmux) == 0);
 
 	modem_backend_mock_put(&bus_mock, cmux_frame_control_sabm_ack,
 			       sizeof(cmux_frame_control_sabm_ack));
@@ -631,7 +645,7 @@ ZTEST(modem_cmux, modem_cmux_disconnect_connect)
 	/* Discard CMUX DLCI DISC commands */
 	modem_backend_mock_reset(&bus_mock);
 
-	zassert_true(modem_cmux_disconnect(&cmux) == 0, "Failed to disconnect CMUX");
+	zassert_true(modem_cmux_disconnect_async(&cmux) == 0, "Failed to disconnect CMUX");
 
 	k_msleep(100);
 
@@ -659,7 +673,7 @@ ZTEST(modem_cmux, modem_cmux_disconnect_connect)
 	zassert_true(ret == 0, "Received unexpected data");
 
 	/* Reconnect CMUX */
-	zassert_true(modem_cmux_connect(&cmux) == 0, "Failed to connect CMUX");
+	zassert_true(modem_cmux_connect_async(&cmux) == 0, "Failed to connect CMUX");
 
 	k_msleep(100);
 
@@ -745,6 +759,39 @@ ZTEST(modem_cmux, modem_cmux_disconnect_connect)
 	ret = modem_backend_mock_get(&bus_mock, buffer1, sizeof(buffer1));
 
 	zassert_true(ret == 0, "Received unexpected data");
+}
+
+ZTEST(modem_cmux, modem_cmux_disconnect_connect_sync)
+{
+	modem_backend_mock_prime(&bus_mock, &transaction_dlci1_disc);
+
+	zassert_true(modem_pipe_close(dlci1_pipe) == 0, "Failed to close DLCI1");
+
+	modem_backend_mock_prime(&bus_mock, &transaction_dlci2_disc);
+
+	zassert_true(modem_pipe_close(dlci2_pipe) == 0, "Failed to close DLCI2");
+
+	modem_backend_mock_prime(&bus_mock, &transaction_control_cld);
+
+	zassert_true(modem_cmux_disconnect(&cmux) == 0, "Failed to disconnect CMUX");
+
+	zassert_true(modem_cmux_disconnect(&cmux) == -EALREADY,
+		     "Should already be disconnected");
+
+	modem_backend_mock_prime(&bus_mock, &transaction_control_sabm);
+
+	zassert_true(modem_cmux_connect(&cmux) == 0, "Failed to connect CMUX");
+
+	zassert_true(modem_cmux_connect(&cmux) == -EALREADY,
+		     "Should already be connected");
+
+	modem_backend_mock_prime(&bus_mock, &transaction_dlci1_sabm);
+
+	zassert_true(modem_pipe_open(dlci1_pipe) == 0, "Failed to open DLCI1 pipe");
+
+	modem_backend_mock_prime(&bus_mock, &transaction_dlci2_sabm);
+
+	zassert_true(modem_pipe_open(dlci2_pipe) == 0, "Failed to open DLCI2 pipe");
 }
 
 ZTEST(modem_cmux, modem_cmux_dlci_close_open_sync)

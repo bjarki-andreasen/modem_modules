@@ -155,6 +155,9 @@ struct modem_cmux {
 	struct modem_cmux_work transmit_work;
 	struct modem_cmux_work connect_work;
 	struct modem_cmux_work disconnect_work;
+
+	/* Synchronize actions */
+	struct k_event event;
 };
 
 /**
@@ -210,7 +213,7 @@ int modem_cmux_attach(struct modem_cmux *cmux, struct modem_pipe *pipe);
 /**
  * @brief Connect CMUX instance
  * @details This will send a CMUX connect request to target on the serial bus. If successful,
- * DLCI channels can be now be opened using modem_cmux_dlci_open().
+ * DLCI channels can be now be opened using modem_pipe_open()
  * @param cmux CMUX instance
  * @param pipe pipe used to transmit data to and from bus
  * @note When connected, the bus pipe must not be used directly
@@ -218,11 +221,28 @@ int modem_cmux_attach(struct modem_cmux *cmux, struct modem_pipe *pipe);
 int modem_cmux_connect(struct modem_cmux *cmux);
 
 /**
+ * @brief Connect CMUX instance asynchronously
+ * @details This will send a CMUX connect request to target on the serial bus. If successful,
+ * DLCI channels can be now be opened using modem_pipe_open().
+ * @param cmux CMUX instance
+ * @param pipe pipe used to transmit data to and from bus
+ * @note When connected, the bus pipe must not be used directly
+ */
+int modem_cmux_connect_async(struct modem_cmux *cmux);
+
+/**
  * @brief Close down and disconnect CMUX instance
  * @details This will close all open DLCI channels, and close down the CMUX connection.
  * @note When disconnected, the bus pipe can be used directly again
  */
 int modem_cmux_disconnect(struct modem_cmux *cmux);
+
+/**
+ * @brief Close down and disconnect CMUX instance asynchronously
+ * @details This will close all open DLCI channels, and close down the CMUX connection.
+ * @note When disconnected, the bus pipe can be used directly again
+ */
+int modem_cmux_disconnect_async(struct modem_cmux *cmux);
 
 void modem_cmux_release(struct modem_cmux *cmux);
 

@@ -13,21 +13,25 @@ LOG_MODULE_REGISTER(modem_cmux);
 
 #include <string.h>
 
-#define MODEM_CMUX_FCS_POLYNOMIAL	(0xE0)
-#define MODEM_CMUX_FCS_INIT_VALUE	(0xFF)
-#define MODEM_CMUX_EA			(0x01)
-#define MODEM_CMUX_CR			(0x02)
-#define MODEM_CMUX_PF			(0x10)
-#define MODEM_CMUX_FRAME_SIZE_MAX	(0x08)
-#define MODEM_CMUX_DATA_SIZE_MIN	(0x08)
-#define MODEM_CMUX_DATA_FRAME_SIZE_MIN	(MODEM_CMUX_FRAME_SIZE_MAX + \
-					 MODEM_CMUX_DATA_SIZE_MIN)
+#define MODEM_CMUX_FCS_POLYNOMIAL		(0xE0)
+#define MODEM_CMUX_FCS_INIT_VALUE		(0xFF)
+#define MODEM_CMUX_EA				(0x01)
+#define MODEM_CMUX_CR				(0x02)
+#define MODEM_CMUX_PF				(0x10)
+#define MODEM_CMUX_FRAME_SIZE_MAX		(0x08)
+#define MODEM_CMUX_DATA_SIZE_MIN		(0x08)
+#define MODEM_CMUX_DATA_FRAME_SIZE_MIN		(MODEM_CMUX_FRAME_SIZE_MAX + \
+						 MODEM_CMUX_DATA_SIZE_MIN)
 
-#define MODEM_CMUX_CMD_DATA_SIZE_MAX	(0x04)
-#define MODEM_CMUX_CMD_FRAME_SIZE_MAX	(MODEM_CMUX_FRAME_SIZE_MAX + \
-					 MODEM_CMUX_CMD_DATA_SIZE_MAX)
+#define MODEM_CMUX_CMD_DATA_SIZE_MAX		(0x04)
+#define MODEM_CMUX_CMD_FRAME_SIZE_MAX		(MODEM_CMUX_FRAME_SIZE_MAX + \
+						 MODEM_CMUX_CMD_DATA_SIZE_MAX)
 
-#define MODEM_CMUX_T1_TIMEOUT		(K_MSEC(330))
+#define MODEM_CMUX_T1_TIMEOUT			(K_MSEC(330))
+#define MODEM_CMUX_T2_TIMEOUT			(K_MSEC(660))
+
+#define MODEM_CMUX_EVENT_CONNECTED_BIT		(BIT(0))
+#define MODEM_CMUX_EVENT_DISCONNECTED_BIT	(BIT(1))
 
 enum modem_cmux_frame_types {
 	MODEM_CMUX_FRAME_TYPE_RR = 0x01,
@@ -333,6 +337,9 @@ static void modem_cmux_on_cld_command(struct modem_cmux *cmux)
 	k_work_cancel_delayable(&cmux->disconnect_work.dwork);
 
 	modem_cmux_raise_event(cmux, MODEM_CMUX_EVENT_DISCONNECTED);
+
+	k_event_clear(&cmux->event, MODEM_CMUX_EVENT_CONNECTED_BIT);
+	k_event_post(&cmux->event, MODEM_CMUX_EVENT_DISCONNECTED_BIT);
 }
 
 static void modem_cmux_on_control_frame_ua(struct modem_cmux *cmux)
@@ -354,6 +361,9 @@ static void modem_cmux_on_control_frame_ua(struct modem_cmux *cmux)
 	k_work_cancel_delayable(&cmux->connect_work.dwork);
 
 	modem_cmux_raise_event(cmux, MODEM_CMUX_EVENT_CONNECTED);
+
+	k_event_clear(&cmux->event, MODEM_CMUX_EVENT_DISCONNECTED_BIT);
+	k_event_post(&cmux->event, MODEM_CMUX_EVENT_CONNECTED_BIT);
 }
 
 static void modem_cmux_on_control_frame_uih(struct modem_cmux *cmux)
@@ -1007,6 +1017,9 @@ void modem_cmux_init(struct modem_cmux *cmux, const struct modem_cmux_config *co
 
 	cmux->disconnect_work.cmux = cmux;
 	k_work_init_delayable(&cmux->disconnect_work.dwork, modem_cmux_disconnect_handler);
+
+	k_event_init(&cmux->event);
+	k_event_post(&cmux->event, MODEM_CMUX_EVENT_DISCONNECTED_BIT);
 }
 
 struct modem_pipe *modem_cmux_dlci_init(struct modem_cmux *cmux, struct modem_cmux_dlci *dlci,
@@ -1059,6 +1072,26 @@ int modem_cmux_connect(struct modem_cmux *cmux)
 {
 	__ASSERT_NO_MSG(cmux->pipe != NULL);
 
+	if (k_event_wait(&cmux->event, MODEM_CMUX_EVENT_CONNECTED_BIT, false, K_NO_WAIT)) {
+		return -EALREADY;
+	}
+
+	if (k_work_delayable_is_pending(&cmux->connect_work.dwork) == false) {
+		k_work_schedule(&cmux->connect_work.dwork, K_NO_WAIT);
+	}
+
+	if (k_event_wait(&cmux->event, MODEM_CMUX_EVENT_CONNECTED_BIT, false,
+			 MODEM_CMUX_T2_TIMEOUT) == 0) {
+		return -EAGAIN;
+	}
+
+	return 0;
+}
+
+int modem_cmux_connect_async(struct modem_cmux *cmux)
+{
+	__ASSERT_NO_MSG(cmux->pipe != NULL);
+
 	if (k_work_delayable_is_pending(&cmux->connect_work.dwork) == true) {
 		return -EBUSY;
 	}
@@ -1069,6 +1102,24 @@ int modem_cmux_connect(struct modem_cmux *cmux)
 }
 
 int modem_cmux_disconnect(struct modem_cmux *cmux)
+{
+	if (k_event_wait(&cmux->event, MODEM_CMUX_EVENT_DISCONNECTED_BIT, false, K_NO_WAIT)) {
+		return -EALREADY;
+	}
+
+	if (k_work_delayable_is_pending(&cmux->disconnect_work.dwork) == false) {
+		k_work_schedule(&cmux->disconnect_work.dwork, K_NO_WAIT);
+	}
+
+	if (k_event_wait(&cmux->event, MODEM_CMUX_EVENT_DISCONNECTED_BIT, false,
+			 MODEM_CMUX_T2_TIMEOUT) == 0) {
+		return -EAGAIN;
+	}
+
+	return 0;
+}
+
+int modem_cmux_disconnect_async(struct modem_cmux *cmux)
 {
 	if (k_work_delayable_is_pending(&cmux->disconnect_work.dwork) == true) {
 		return -EBUSY;

@@ -399,7 +399,7 @@ static void *test_modem_e2e_setup(void)
 
 	__ASSERT_NO_MSG(modem_cmux_attach(&cmux, tty_pipe) == 0);
 
-	__ASSERT_NO_MSG(modem_cmux_connect(&cmux) == 0);
+	__ASSERT_NO_MSG(modem_cmux_connect_async(&cmux) == 0);
 
 	__ASSERT_NO_MSG(k_event_wait(&test_modem_e2e_event, TEST_MODEM_E2E_EVENT_CMUX_CONNECTED, false, K_MSEC(3000)) > 0);
 
@@ -526,7 +526,7 @@ static void test_modem_e2e_teardown(void *f)
 
 	printk("Disconnecting CMUX\n");
 
-	modem_cmux_disconnect(&cmux);
+	modem_cmux_disconnect_async(&cmux);
 
 	modem_cmux_release(&cmux);
 }

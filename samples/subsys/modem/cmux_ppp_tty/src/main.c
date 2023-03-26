@@ -409,7 +409,7 @@ void main(void)
 	}
 
 	/* Attach CMUX module to bus pipe which is now in CMUX mode and set up CMUX */
-	ret = modem_cmux_connect(&cmux);
+	ret = modem_cmux_connect_async(&cmux);
 	if (ret < 0) {
 		return;
 	}
@@ -553,7 +553,7 @@ void main(void)
 	printk("Disconnecting CMUX\n");
 
 	/* Disconnect CMUX module */
-	modem_cmux_disconnect(&cmux);
+	modem_cmux_disconnect_async(&cmux);
 
 	k_msleep(500);
 
