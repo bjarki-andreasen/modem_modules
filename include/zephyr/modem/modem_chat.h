@@ -11,8 +11,12 @@
 
 #include <zephyr/modem/modem_pipe.h>
 
-#ifndef ZEPHYR_MODEM_MODEM_CHAT
-#define ZEPHYR_MODEM_MODEM_CHAT
+#ifndef ZEPHYR_MODEM_MODEM_CHAT_
+#define ZEPHYR_MODEM_MODEM_CHAT_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct modem_chat;
 
@@ -345,4 +349,8 @@ void modem_chat_script_abort(struct modem_chat *chat);
  */
 void modem_chat_release(struct modem_chat *chat);
 
-#endif /* ZEPHYR_MODEM_MODEM_CHAT */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* ZEPHYR_MODEM_MODEM_CHAT_ */

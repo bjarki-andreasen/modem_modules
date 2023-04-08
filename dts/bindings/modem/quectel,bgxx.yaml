@@ -1,4 +1,0 @@
-description: quectel BG9x modem
-
-compatible: "quectel,bgxx"
-include: uart-device.yaml

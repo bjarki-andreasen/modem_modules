@@ -26,8 +26,12 @@
 
 #include <zephyr/modem/modem_pipe.h>
 
-#ifndef ZEPHYR_DRIVERS_MODEM_MODEM_CMUX
-#define ZEPHYR_DRIVERS_MODEM_MODEM_CMUX
+#ifndef ZEPHYR_DRIVERS_MODEM_MODEM_CMUX_
+#define ZEPHYR_DRIVERS_MODEM_MODEM_CMUX_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct modem_cmux;
 
@@ -246,4 +250,8 @@ int modem_cmux_disconnect_async(struct modem_cmux *cmux);
 
 void modem_cmux_release(struct modem_cmux *cmux);
 
-#endif /* ZEPHYR_DRIVERS_MODEM_MODEM_CMUX */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* ZEPHYR_DRIVERS_MODEM_MODEM_CMUX_ */

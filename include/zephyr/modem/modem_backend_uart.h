@@ -13,8 +13,12 @@
 
 #include <zephyr/modem/modem_pipe.h>
 
-#ifndef ZEPHYR_MODEM_MODEM_BACKEND_UART
-#define ZEPHYR_MODEM_MODEM_BACKEND_UART
+#ifndef ZEPHYR_MODEM_MODEM_BACKEND_UART_
+#define ZEPHYR_MODEM_MODEM_BACKEND_UART_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct modem_backend_uart_isr {
 	struct ring_buf receive_rdb[2];
@@ -56,4 +60,8 @@ struct modem_backend_uart_config {
 struct modem_pipe *modem_backend_uart_init(struct modem_backend_uart *backend,
 					   const struct modem_backend_uart_config *config);
 
-#endif /* ZEPHYR_MODEM_MODEM_BACKEND_UART */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* ZEPHYR_MODEM_MODEM_BACKEND_UART_ */

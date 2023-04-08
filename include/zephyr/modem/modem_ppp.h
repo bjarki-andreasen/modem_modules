@@ -7,8 +7,12 @@
 
 #include <zephyr/modem/modem_pipe.h>
 
-#ifndef ZEPHYR_MODEM_MODEM_PPP
-#define ZEPHYR_MODEM_MODEM_PPP
+#ifndef ZEPHYR_MODEM_MODEM_PPP_
+#define ZEPHYR_MODEM_MODEM_PPP_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum modem_ppp_receive_state {
 	/* Searching for start of frame and header */
@@ -163,4 +167,8 @@ int modem_ppp_init_internal(const struct device *dev);
 			&_name##_config, &_name, _init_iface, _prio, &modem_ppp_ppp_api, PPP_L2,   \
 			NET_L2_GET_CTX_TYPE(PPP_L2), _mtu)
 
-#endif /* ZEPHYR_MODEM_MODEM_PPP */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* ZEPHYR_MODEM_MODEM_PPP_ */

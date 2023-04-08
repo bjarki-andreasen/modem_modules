@@ -250,12 +250,12 @@ void modem_backend_uart_async_init(struct modem_backend_uart *backend,
 {
 	uint32_t receive_buf_size_quarter = config->receive_buf_size / 4;
 
-	/* Split receive buffer into 4 buffers, use parts for UART receive double buffer */
+	/* Split receive buffer into 4 buffers, use 2 parts for UART receive double buffer */
 	backend->async.receive_buf_size = receive_buf_size_quarter;
 	backend->async.receive_bufs[0] = &config->receive_buf[0];
 	backend->async.receive_bufs[1] = &config->receive_buf[receive_buf_size_quarter];
 
-	/* Use remaining 2 receive buffer for receive double ring buffer */
+	/* Use remaining 2 parts for receive double ring buffer */
 	ring_buf_init(&backend->async.receive_rdb[0], receive_buf_size_quarter,
 		      &config->receive_buf[receive_buf_size_quarter * 2]);
 
