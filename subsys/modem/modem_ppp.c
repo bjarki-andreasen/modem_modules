@@ -1,6 +1,6 @@
 #include <zephyr/net/ppp.h>
 #include <zephyr/sys/crc.h>
-#include <zephyr/modem/modem_ppp.h>
+#include <zephyr/modem/ppp.h>
 #include <string.h>
 
 #include <zephyr/logging/log.h>

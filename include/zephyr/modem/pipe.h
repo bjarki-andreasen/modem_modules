@@ -7,8 +7,8 @@
 #include <zephyr/types.h>
 #include <zephyr/kernel.h>
 
-#ifndef ZEPHYR_MODEM_MODEM_PIPE_
-#define ZEPHYR_MODEM_MODEM_PIPE_
+#ifndef ZEPHYR_MODEM_PIPE_
+#define ZEPHYR_MODEM_PIPE_
 
 #ifdef __cplusplus
 extern "C" {
@@ -137,4 +137,4 @@ void modem_pipe_notify_receive_ready(struct modem_pipe *pipe);
 }
 #endif
 
-#endif /* ZEPHYR_MODEM_MODEM_PIPE_ */
+#endif /* ZEPHYR_MODEM_PIPE_ */

@@ -1,4 +1,4 @@
-#include <zephyr/modem/modem_pipe.h>
+#include <zephyr/modem/pipe.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(modem_pipe);

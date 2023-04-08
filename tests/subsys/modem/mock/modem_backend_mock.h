@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/modem/modem_pipe.h>
+#include <zephyr/modem/pipe.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/ring_buffer.h>
 

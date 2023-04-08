@@ -7,7 +7,7 @@
 #include "modem_backend_uart_isr.h"
 #include "modem_backend_uart_async.h"
 
-#include <zephyr/modem/modem_backend_uart.h>
+#include <zephyr/modem/backend/uart.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(modem_backend_uart);

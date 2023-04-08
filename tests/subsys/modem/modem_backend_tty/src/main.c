@@ -11,7 +11,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
 
-#include <zephyr/modem/modem_backend_tty.h>
+#include <zephyr/modem/backend/tty.h>
 
 #include <stdio.h>
 #include <stdlib.h>

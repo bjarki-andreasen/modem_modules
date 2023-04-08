@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/modem/modem_backend_tty.h>
+#include <zephyr/modem/backend/tty.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(modem_backend_tty);

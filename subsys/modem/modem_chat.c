@@ -10,7 +10,7 @@ LOG_MODULE_REGISTER(modem_chat);
 #include <zephyr/kernel.h>
 #include <string.h>
 
-#include <zephyr/modem/modem_chat.h>
+#include <zephyr/modem/chat.h>
 
 #define MODEM_CHAT_MATCHES_INDEX_RESPONSE (0)
 #define MODEM_CHAT_MATCHES_INDEX_ABORT	  (1)

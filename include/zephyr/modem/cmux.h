@@ -24,10 +24,10 @@
 #include <zephyr/sys/ring_buffer.h>
 #include <zephyr/sys/atomic.h>
 
-#include <zephyr/modem/modem_pipe.h>
+#include <zephyr/modem/pipe.h>
 
-#ifndef ZEPHYR_DRIVERS_MODEM_MODEM_CMUX_
-#define ZEPHYR_DRIVERS_MODEM_MODEM_CMUX_
+#ifndef ZEPHYR_MODEM_CMUX_
+#define ZEPHYR_MODEM_CMUX_
 
 #ifdef __cplusplus
 extern "C" {
@@ -254,4 +254,4 @@ void modem_cmux_release(struct modem_cmux *cmux);
 }
 #endif
 
-#endif /* ZEPHYR_DRIVERS_MODEM_MODEM_CMUX_ */
+#endif /* ZEPHYR_MODEM_CMUX_ */

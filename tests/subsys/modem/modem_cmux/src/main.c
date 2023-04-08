@@ -11,7 +11,7 @@
 #include <zephyr/kernel.h>
 #include <string.h>
 
-#include <zephyr/modem/modem_cmux.h>
+#include <zephyr/modem/cmux.h>
 #include <modem_backend_mock.h>
 
 /*************************************************************************************************/

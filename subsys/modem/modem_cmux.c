@@ -9,7 +9,7 @@ LOG_MODULE_REGISTER(modem_cmux);
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/crc.h>
-#include <zephyr/modem/modem_cmux.h>
+#include <zephyr/modem/cmux.h>
 
 #include <string.h>
 

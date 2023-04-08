@@ -5,10 +5,10 @@
 #include <zephyr/sys/ring_buffer.h>
 #include <zephyr/sys/atomic.h>
 
-#include <zephyr/modem/modem_pipe.h>
+#include <zephyr/modem/pipe.h>
 
-#ifndef ZEPHYR_MODEM_MODEM_PPP_
-#define ZEPHYR_MODEM_MODEM_PPP_
+#ifndef ZEPHYR_MODEM_PPP_
+#define ZEPHYR_MODEM_PPP_
 
 #ifdef __cplusplus
 extern "C" {
@@ -171,4 +171,4 @@ int modem_ppp_init_internal(const struct device *dev);
 }
 #endif
 
-#endif /* ZEPHYR_MODEM_MODEM_PPP_ */
+#endif /* ZEPHYR_MODEM_PPP_ */

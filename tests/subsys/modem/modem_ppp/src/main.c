@@ -16,7 +16,7 @@
 #include <zephyr/sys/crc.h>
 #include <string.h>
 
-#include <zephyr/modem/modem_ppp.h>
+#include <zephyr/modem/ppp.h>
 #include <modem_backend_mock.h>
 
 #define TEST_MODEM_PPP_BUF_SIZE		     (16)

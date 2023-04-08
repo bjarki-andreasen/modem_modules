@@ -12,7 +12,7 @@
 #include <zephyr/sys/atomic.h>
 #include <string.h>
 
-#include <zephyr/modem/modem_chat.h>
+#include <zephyr/modem/chat.h>
 #include <modem_backend_mock.h>
 
 /*************************************************************************************************/

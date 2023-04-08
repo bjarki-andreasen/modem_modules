@@ -9,10 +9,10 @@
 #include <zephyr/device.h>
 #include <zephyr/sys/ring_buffer.h>
 
-#include <zephyr/modem/modem_pipe.h>
+#include <zephyr/modem/pipe.h>
 
-#ifndef ZEPHYR_MODEM_MODEM_CHAT_
-#define ZEPHYR_MODEM_MODEM_CHAT_
+#ifndef ZEPHYR_MODEM_CHAT_
+#define ZEPHYR_MODEM_CHAT_
 
 #ifdef __cplusplus
 extern "C" {
@@ -353,4 +353,4 @@ void modem_chat_release(struct modem_chat *chat);
 }
 #endif
 
-#endif /* ZEPHYR_MODEM_MODEM_CHAT_ */
+#endif /* ZEPHYR_MODEM_CHAT_ */

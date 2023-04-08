@@ -11,11 +11,11 @@
 #include <zephyr/kernel.h>
 #include <zephyr/net/ppp.h>
 #include <zephyr/net/socket.h>
-#include <zephyr/modem/modem_chat.h>
-#include <zephyr/modem/modem_cmux.h>
-#include <zephyr/modem/modem_pipe.h>
-#include <zephyr/modem/modem_ppp.h>
-#include <zephyr/modem/modem_backend_tty.h>
+#include <zephyr/modem/chat.h>
+#include <zephyr/modem/cmux.h>
+#include <zephyr/modem/pipe.h>
+#include <zephyr/modem/ppp.h>
+#include <zephyr/modem/backend/tty.h>
 
 #include <string.h>
 #include <stdlib.h>

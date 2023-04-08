@@ -9,10 +9,10 @@
 #include <zephyr/device.h>
 #include <zephyr/sys/ring_buffer.h>
 
-#include <zephyr/modem/modem_pipe.h>
+#include <zephyr/modem/pipe.h>
 
-#ifndef ZEPHYR_MODEM_MODEM_BACKEND_TTY_
-#define ZEPHYR_MODEM_MODEM_BACKEND_TTY_
+#ifndef ZEPHYR_MODEM_BACKEND_TTY_
+#define ZEPHYR_MODEM_BACKEND_TTY_
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,4 +43,4 @@ struct modem_pipe *modem_backend_tty_init(struct modem_backend_tty *backend,
 }
 #endif
 
-#endif /* ZEPHYR_MODEM_MODEM_BACKEND_TTY_ */
+#endif /* ZEPHYR_MODEM_BACKEND_TTY_ */
