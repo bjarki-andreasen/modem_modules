@@ -16,22 +16,33 @@
 #ifndef ZEPHYR_MODEM_MODEM_BACKEND_UART
 #define ZEPHYR_MODEM_MODEM_BACKEND_UART
 
-struct modem_backend_uart;
+struct modem_backend_uart_isr {
+	struct ring_buf receive_rdb[2];
+	struct ring_buf transmit_rb;
+	atomic_t transmit_buf_len;
+	uint8_t receive_rdb_used;
+	uint32_t transmit_buf_put_limit;
+};
 
-struct modem_backend_uart_work {
-	struct k_work work;
-	struct modem_backend_uart *backend;
+struct modem_backend_uart_async {
+	uint8_t *receive_bufs[2];
+	uint32_t receive_buf_size;
+	struct ring_buf receive_rdb[2];
+	uint8_t *transmit_buf;
+	uint32_t transmit_buf_size;
+	atomic_t state;
+	uint8_t receive_rdb_used;
 };
 
 struct modem_backend_uart {
 	const struct device *uart;
-	struct ring_buf receive_rdb[2];
-	uint8_t receive_rdb_used;
-	struct ring_buf transmit_rb;
-	atomic_t transmit_buf_len;
-	uint32_t transmit_buf_put_limit;
 	struct modem_pipe pipe;
-	struct modem_backend_uart_work receive_ready_work;
+	struct k_work receive_ready_work;
+
+	union {
+		struct modem_backend_uart_isr isr;
+		struct modem_backend_uart_async async;
+	};
 };
 
 struct modem_backend_uart_config {

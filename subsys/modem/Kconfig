@@ -6,16 +6,6 @@ menuconfig MODEM_MODULES
 
 if MODEM_MODULES
 
-config MODEM_BACKEND_TTY
-	bool "Modem TTY backend module"
-	select MODEM_PIPE
-	depends on ARCH_POSIX
-
-config MODEM_BACKEND_UART
-	bool "Modem UART backend module"
-	select MODEM_PIPE
-	depends on SERIAL_SUPPORT_INTERRUPT
-
 config MODEM_CHAT
 	bool "Modem chat module"
 	select RING_BUFFER
@@ -35,5 +25,7 @@ config MODEM_PPP
 	depends on NET_L2_PPP
 	select MODEM_PIPE
 	select RING_BUFFER
+
+rsource "backends/Kconfig"
 
 endif
