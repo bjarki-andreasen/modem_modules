@@ -164,7 +164,7 @@ int modem_ppp_init_internal(const struct device *dev);
 	};                                                                                         \
                                                                                                    \
 	NET_DEVICE_INIT(ppp_net_dev_##_name, "modem_ppp_" #_name, modem_ppp_init_internal,         \
-			&_name##_config, &_name, _init_iface, _prio, &modem_ppp_ppp_api, PPP_L2,   \
+			NULL, &_name, NULL, _prio, &modem_ppp_ppp_api, PPP_L2,                     \
 			NET_L2_GET_CTX_TYPE(PPP_L2), _mtu)
 
 #ifdef __cplusplus
