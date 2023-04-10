@@ -30,6 +30,8 @@ class TestPacket:
     def get_data(self) -> bytes:
         return self.data
 
+timeout = 0.2
+
 sock_upload = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock_echo = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock_download = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -45,6 +47,7 @@ test_packet_invalid_response = "INVALID".encode("utf-8")
 running = True
 
 def upload_handler():
+    global timeout
     global sock_upload
     global test_packet
     global running
@@ -58,7 +61,7 @@ def upload_handler():
         try:
             data, addr = sock_upload.recvfrom(1024)
         except:
-            time.sleep(0.05)
+            time.sleep(timeout)
             continue
 
         if test_packet.validate(data, addr):
@@ -67,6 +70,7 @@ def upload_handler():
             invalid += 1
 
 def echo_handler():
+    global timeout
     global sock_echo
     global test_packet
     global running
@@ -77,7 +81,7 @@ def echo_handler():
         try:
             data, addr = sock_echo.recvfrom(1024)
         except:
-            time.sleep(0.05)
+            time.sleep(timeout)
             continue
 
         if test_packet.validate(data, addr):
@@ -85,6 +89,7 @@ def echo_handler():
                 sock_echo.sendto(data, addr)
 
 def download_handler():
+    global timeout
     global sock_download
     global test_packet
     global running
@@ -95,16 +100,14 @@ def download_handler():
         try:
             data, addr = sock_download.recvfrom(1024)
         except:
-            time.sleep(0.05)
+            time.sleep(timeout)
             continue
 
         if test_packet.validate(data, addr):
-            for _ in range(20):
-                for _ in range(5):
-                    print(f"[{time.time()}]Download: Sending packet")
-                    sock_download.sendto(test_packet.data, addr)
-
-                time.sleep(0.1)
+            for _ in range(100):
+                print(f"[{time.time()}]Download: Sending packet")
+                sock_download.sendto(test_packet.data, addr)
+                time.sleep(timeout)
 
 threading.Thread(target=upload_handler).start()
 threading.Thread(target=echo_handler).start()

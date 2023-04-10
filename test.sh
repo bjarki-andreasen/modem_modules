@@ -22,8 +22,8 @@ do
 done
 
 # Samples
-echo "Building sample: cmux_ppp"
-west build -p -b b_u585i_iot02a "modem_modules/samples/subsys/modem/cmux_ppp" > /dev/null 2>&1
+echo "Building sample: cellular"
+west build -p -b b_u585i_iot02a "modem_modules/samples/subsys/modem/cellular" > /dev/null 2>&1
 echo "Success"
 
 echo "Building sample: cmux_ppp_tty"
