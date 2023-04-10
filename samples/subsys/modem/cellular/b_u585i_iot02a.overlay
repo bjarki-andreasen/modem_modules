@@ -19,13 +19,22 @@
 	};
 };
 
+&gpdma1 {
+	status = "okay";
+};
+
 /* BG95 */
 &usart2 {
 	pinctrl-0 = <&usart2_tx_pa2 &usart2_rx_pa3 &usart2_rts_pa1 &usart2_cts_pa0>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
-	status = "okay";
 	hw-flow-control;
+
+	dmas = <&gpdma1 0 27 STM32_DMA_PERIPH_TX
+		&gpdma1 1 26 STM32_DMA_PERIPH_RX>;
+	dma-names = "tx", "rx";
+
+	status = "okay";
 
 	modem: modem {
 		compatible = "quectel,bg9x";
