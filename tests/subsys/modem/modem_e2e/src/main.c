@@ -19,7 +19,7 @@
 /*                                         Definitions                                           */
 /*************************************************************************************************/
 #warning "Configure the following before running the test"
-#define TEST_MODEM_E2E_SERVER_IP_ADDR "87.62.97.174"
+#define TEST_MODEM_E2E_SERVER_IP_ADDR ""
 
 #define TEST_MODEM_E2E_SERVER_UPLOAD_PORT	(7777)
 #define TEST_MODEM_E2E_SERVER_ECHO_PORT		(7778)
