@@ -12,11 +12,12 @@ LOG_MODULE_DECLARE(modem_backend_uart);
 #include <zephyr/kernel.h>
 #include <string.h>
 
-#define MODEM_BACKEND_UART_ASYNC_STATE_TRANSMITTING_BIT  (0)
-#define MODEM_BACKEND_UART_ASYNC_STATE_RX_BUF0_USED_BIT  (1)
-#define MODEM_BACKEND_UART_ASYNC_STATE_RX_BUF1_USED_BIT  (2)
+#define MODEM_BACKEND_UART_ASYNC_STATE_TRANSMITTING_BIT       (0)
+#define MODEM_BACKEND_UART_ASYNC_STATE_RX_BUF0_USED_BIT       (1)
+#define MODEM_BACKEND_UART_ASYNC_STATE_RX_BUF1_USED_BIT       (2)
+#define MODEM_BACKEND_UART_ASYNC_STATE_RX_RBUF_USED_INDEX_BIT (3)
 
-#define MODEM_BACKEND_UART_ASYNC_BLOCK_MIN_SIZE (4)
+#define MODEM_BACKEND_UART_ASYNC_BLOCK_MIN_SIZE (8)
 
 static void modem_backend_uart_async_flush(struct modem_backend_uart *backend)
 {
@@ -27,12 +28,31 @@ static void modem_backend_uart_async_flush(struct modem_backend_uart *backend)
 	}
 }
 
+static uint8_t modem_backend_uart_async_rx_rbuf_used_index(struct modem_backend_uart *backend)
+{
+	return atomic_test_bit(&backend->async.state,
+			       MODEM_BACKEND_UART_ASYNC_STATE_RX_RBUF_USED_INDEX_BIT);
+}
+
+static void modem_backend_uart_async_rx_rbuf_used_swap(struct modem_backend_uart *backend)
+{
+	uint8_t rx_rbuf_index = modem_backend_uart_async_rx_rbuf_used_index(backend);
+
+	if (rx_rbuf_index) {
+		atomic_clear_bit(&backend->async.state,
+				 MODEM_BACKEND_UART_ASYNC_STATE_RX_RBUF_USED_INDEX_BIT);
+	} else {
+		atomic_set_bit(&backend->async.state,
+			       MODEM_BACKEND_UART_ASYNC_STATE_RX_RBUF_USED_INDEX_BIT);
+	}
+}
+
 static void modem_backend_uart_async_event_handler(const struct device *dev,
 						   struct uart_event *evt, void *user_data)
 {
 	struct modem_backend_uart *backend = (struct modem_backend_uart *) user_data;
 
-	uint8_t receive_rdb_used;
+	uint8_t receive_rb_used_index;
 	uint32_t received;
 
 	switch (evt->type) {
@@ -43,16 +63,16 @@ static void modem_backend_uart_async_event_handler(const struct device *dev,
 		break;
 
 	case UART_RX_BUF_REQUEST:
-		if (atomic_test_and_set_bit(&backend->async.state,
-					    MODEM_BACKEND_UART_ASYNC_STATE_RX_BUF0_USED_BIT) == false) {
+		if (!atomic_test_and_set_bit(&backend->async.state,
+					     MODEM_BACKEND_UART_ASYNC_STATE_RX_BUF0_USED_BIT)) {
 			uart_rx_buf_rsp(backend->uart, backend->async.receive_bufs[0],
 					backend->async.receive_buf_size);
 
 			break;
 		}
 
-		if (atomic_test_and_set_bit(&backend->async.state,
-					    MODEM_BACKEND_UART_ASYNC_STATE_RX_BUF1_USED_BIT) == false) {
+		if (!atomic_test_and_set_bit(&backend->async.state,
+					     MODEM_BACKEND_UART_ASYNC_STATE_RX_BUF1_USED_BIT)) {
 			uart_rx_buf_rsp(backend->uart, backend->async.receive_bufs[1],
 					backend->async.receive_buf_size);
 
@@ -83,14 +103,14 @@ static void modem_backend_uart_async_event_handler(const struct device *dev,
 		break;
 
 	case UART_RX_RDY:
-		receive_rdb_used = backend->async.receive_rdb_used;
+		receive_rb_used_index = modem_backend_uart_async_rx_rbuf_used_index(backend);
 
-		received = ring_buf_put(&backend->async.receive_rdb[receive_rdb_used],
+		received = ring_buf_put(&backend->async.receive_rdb[receive_rb_used_index],
 				       &evt->data.rx.buf[evt->data.rx.offset],
 				       evt->data.rx.len);
 
 		if (received < evt->data.rx.len) {
-			ring_buf_reset(&backend->async.receive_rdb[receive_rdb_used]);
+			ring_buf_reset(&backend->async.receive_rdb[receive_rb_used_index]);
 
 			LOG_WRN("Receive buffer overrun");
 
@@ -193,10 +213,9 @@ static int modem_backend_uart_async_receive(void *data, uint8_t *buf, uint32_t s
 
 	uint32_t received;
 	uint8_t receive_rdb_unused;
-	unsigned int key;
 
 	received = 0;
-	receive_rdb_unused = (backend->async.receive_rdb_used == 1) ? 0 : 1;
+	receive_rdb_unused = modem_backend_uart_async_rx_rbuf_used_index(backend) ? 0 : 1;
 
 	/* Read data from unused ring double buffer first */
 	received += ring_buf_get(&backend->async.receive_rdb[receive_rdb_unused], buf, size);
@@ -206,14 +225,10 @@ static int modem_backend_uart_async_receive(void *data, uint8_t *buf, uint32_t s
 	}
 
 	/* Swap receive ring double buffer */
-	key = irq_lock();
-
-	backend->async.receive_rdb_used = receive_rdb_unused;
-
-	irq_unlock(key);
+	modem_backend_uart_async_rx_rbuf_used_swap(backend);
 
 	/* Read data from previously used buffer */
-	receive_rdb_unused = (backend->async.receive_rdb_used == 1) ? 0 : 1;
+	receive_rdb_unused = modem_backend_uart_async_rx_rbuf_used_index(backend) ? 0 : 1;
 
 	received += ring_buf_get(&backend->async.receive_rdb[receive_rdb_unused],
 				   &buf[received], (size - received));

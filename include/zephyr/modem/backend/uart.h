@@ -35,7 +35,6 @@ struct modem_backend_uart_async {
 	uint8_t *transmit_buf;
 	uint32_t transmit_buf_size;
 	atomic_t state;
-	uint8_t receive_rdb_used;
 };
 
 struct modem_backend_uart {
