@@ -1,3 +1,8 @@
+# NOTE The modem modules are now part of Zephyr upstream
+https://github.com/zephyrproject-rtos/zephyr/tree/main/subsys/modem
+
+All future work takes place on Zephyr.
+
 # Modem subsystem for Zephyr RTOS
 ## Introduction
 The modem subsystem adds Zephyr implementations of the popular Linux programs: chat and pppd, and a CMUX module. All modules except the modem_ppp (pppd)b which is statically tied to a PPP L2 network interface, can be dynamically interconnected during runtime. This allows for dynamically adjusting to specific modems during runtime.
